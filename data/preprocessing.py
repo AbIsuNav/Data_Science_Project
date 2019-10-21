@@ -65,7 +65,7 @@ for c_label in all_labels:
 # weight is 0.1 + number of findings
 sample_weights = all_xray_df['Finding Labels'].map(lambda x: len(x.split('|')) if len(x)>0 else 0).values + 1e-1
 sample_weights /= sample_weights.sum()
-all_xray_df = all_xray_df.sample(18000, weights=sample_weights)
+#all_xray_df = all_xray_df.sample(18000, weights=sample_weights)
 
 label_counts = all_xray_df['Finding Labels'].value_counts()[:15]
 
