@@ -1,6 +1,5 @@
 from . import resnet, transition
-# import resnet
-# import transition
+
 import torch
 import torch.nn
 
