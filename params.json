@@ -3,7 +3,6 @@
   "shuffle": true,
   "num_workers": 6,
   "max_epochs": 100,
-
   "which_resnet": "resnet34",
 
   "data_folder": "data_big",

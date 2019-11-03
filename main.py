@@ -52,11 +52,11 @@ def main():
     which_resnet = params['which_resnet']
     param_set = {
         'input_features': 512,
-        'S': 8,
+        'S': 7,
         'D': 512,
-        'n_classes': 14,
+        'n_classes': 14
         # 'CAM': False,
-        'r': 10
+        # 'r': 10
     }
     # resnet = networks.load_resnet(which_resnet).to(device)
     unified_net = networks.UnifiedNetwork(param_set, which_resnet).to(device)

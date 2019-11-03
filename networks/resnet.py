@@ -3,6 +3,9 @@ from torchvision import transforms
 from PIL import Image
 import torch.nn as nn
 
+from torchvision import models
+from torchsummary import summary
+
 """
 Pre-trained ResNet50
 """
@@ -207,6 +210,7 @@ def resnet50():
 
 def load_model():
     """
+    I (Moein) have written the load_resnet() function based on this function, so this could be removed.
     Example from https://pytorch.org/hub/pytorch_vision_resnet/
     :return:
     """
@@ -235,15 +239,35 @@ def load_model():
     print(torch.nn.functional.softmax(output[0], dim=0))
 
 
-def load_resnet(which_resnet='resnet34'):
+def load_resnet(verbose=False):
     """
     Example from https://pytorch.org/hub/pytorch_vision_resnet/
-    :param which_resnet: -
-    :return: -
+    it is chosen as default to load the ResNet34 model.
+    :param verbose: if True, the function prints model summaries before and after removing the two last layers.
+    :return: the pre-trained resnet34 model with the two last layers (pooling and fully connected) removed.
+    Output shape is [512 x 7 x 7].
     """
-    model = torch.hub.load('pytorch/vision', which_resnet, pretrained=True)
-    model.eval()  # model in evaluation mode (e.g. change behavior of batch normalization)
-    return model
+    # model = torch.hub.load('pytorch/vision', which_resnet, pretrained=True)
+    # model.eval()  # model in evaluation mode (e.g. change behavior of batch normalization)
+    resnet_model = models.resnet34(pretrained=True)
+    # freezing the parameters
+    for param in resnet_model.parameters():
+        param.requires_grad = False
+
+    if verbose:
+        print('ResNet summary before removing the last two layers')
+        # print(resnet_model)
+        summary(resnet_model, input_size=(3, 224, 224))
+
+    # removing the last two layers: max pooling and linear layers
+    resnet_model = torch.nn.Sequential(*list(resnet_model.children())[:-2])
+
+    if verbose:
+        print('ResNet summary before after the last two layers')
+        # print(resnet_model)
+        summary(resnet_model, input_size=(3, 224, 224))
+
+    return resnet_model
 
 
 if __name__ == "__main__":
