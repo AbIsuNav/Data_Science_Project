@@ -1,13 +1,9 @@
 import torch
 import torch.nn as nn
-import math
 
 
 def WCEL(fx, label, n_classes=8):
-	"""
-	Multi-label Classification Loss Layer: Weighted Cross Entropy Loss
-	Eq(1)
-	"""
+	# Multi-label Classification Loss Layer: Weighted Cross Entropy Loss, Eq(1)
     P = label.sum()
     N = label.size(0) * label.size(1) - P
     betaP = (P + N)/(P + 1e-5) # avoid zero in denominator
