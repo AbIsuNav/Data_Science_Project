@@ -2,18 +2,28 @@ import torch
 import torch.nn as nn
 
 
-def WCEL(fx, label, n_classes=8):
-	# Multi-label Classification Loss Layer: Weighted Cross Entropy Loss, Eq(1)
+def WCEL(fx, label):
+    """
+    Multi-label Classification Loss Layer: Weighted Cross Entropy Loss, Eq(1)
+    :param fx: the output (prediction) of the unified network, tensor of shape (B, 14)
+    :param label: the true labels, tensor of shape (B, 14)
+    :return:
+    """
     P = label.sum()
     N = label.size(0) * label.size(1) - P
-    betaP = (P + N)/(P + 1e-5) # avoid zero in denominator
-    betaN = (P + N)/(N + 1e-5) 
+    betaP = (P + N) / (P + 1e-5)  # avoid zero in denominator
+    betaN = (P + N) / (N + 1e-5)
     y0 = torch.abs(label - 1)
     loss = (-betaP * torch.log(fx) * label).sum() - (betaN * torch.log(1 - fx) * y0).sum()
 
-    return loss
+    batch_size = fx.shape[0]
+    loss_avg = loss / batch_size
 
-if __name__=='__main__':
+    # return loss
+    return loss_avg
+
+
+if __name__ == '__main__':
     S = 8
     D = 2048
     n_classes = 8

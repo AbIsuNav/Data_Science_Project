@@ -5,17 +5,35 @@ import torch.nn
 
 
 class UnifiedNetwork(torch.nn.Module):
-    def __init__(self, params_set, which_resnet):
+    """
+    Loads the wanted pre-trained ResNet, creates a transition layer, and then connects the loaded ResNet to the
+    TransitionLayer which contains the pooling and prediction layers in itself.
+    """
+    def __init__(self, transition_params, which_resnet):
+        """
+        :param transition_params: a dictionary containing the parameters needed to initialize a transition layer.
+        :param which_resnet: a string such as 'resnet34' indicating the resnet to be loaded.
+        """
         super().__init__()
-        self.resnet = resnet.load_resnet(which_resnet)
-        self.trans_pool_prediction = transition.TransitionLayer(**params_set)
+        self.resnet = resnet.load_resnet()
+        self.trans_pool_prediction = transition.TransitionLayer(**transition_params)
 
-    def forward(self, input_img):
+    def forward(self, input_img, verbose=False):
+        """
+        The forward pass of the network, plugging in the output of the resnet to the transition layer
+        :param verbose:
+        :param input_img: the input image of shape (C, H, W), denoting channel, height, and width (excluding batch size)
+        :return: the prediction (or the heat-map) on the image
+        """
         resnet_out = self.resnet(input_img)
-        print('resnet output:', resnet_out.size())
+        if verbose:
+            print('In [forward] of UnifiedNetwork: resnet output size:', resnet_out.size())
 
         pred = self.trans_pool_prediction(resnet_out)
-        print(pred.size())
+        if verbose:
+            print('In [forward] of UnifiedNetwork: trans_pool_prediction output size:', pred.size())
+            # print('In [forward] of UnifiedNetwork: prediction for the first 5 images:')
+            # print(pred[:5])
         return pred
 
 
@@ -30,7 +48,7 @@ if __name__ == '__main__':
     }
     test_batch = torch.rand((10, 3, 224, 224))
 
-    resnet34 = resnet.load_resnet('resnet34')
+    resnet34 = resnet.load_resnet()
     trans_pool_prediction = transition.TransitionLayer(**param_set)
 
     res_out = resnet34(test_batch)

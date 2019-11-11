@@ -245,7 +245,7 @@ def load_resnet(verbose=False):
     it is chosen as default to load the ResNet34 model.
     :param verbose: if True, the function prints model summaries before and after removing the two last layers.
     :return: the pre-trained resnet34 model with the two last layers (pooling and fully connected) removed.
-    Output shape is [512 x 7 x 7].
+    Output shape is [512 x 7 x 7] excluding the batch size.
     """
     # model = torch.hub.load('pytorch/vision', which_resnet, pretrained=True)
     # model.eval()  # model in evaluation mode (e.g. change behavior of batch normalization)
@@ -272,5 +272,5 @@ def load_resnet(verbose=False):
 
 if __name__ == "__main__":
     # load_model()
-    resnet = load_resnet('resnet34')
+    resnet = load_resnet()
     print(resnet)

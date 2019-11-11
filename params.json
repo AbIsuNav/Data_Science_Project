@@ -1,9 +1,12 @@
 {
+  "max_optim_steps": 1000,
   "batch_size": 64,
   "shuffle": true,
   "num_workers": 6,
   "max_epochs": 100,
+
   "which_resnet": "resnet34",
+  "pool_mode": "max",
 
   "data_folder": "data_big",
   "h5_file": "chest_xray.h5"

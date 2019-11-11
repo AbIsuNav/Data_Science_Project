@@ -38,6 +38,11 @@ class Dataset(data.Dataset):
         return len(self.img_ids)
 
     def __getitem__(self, index):
+        """
+        :param index:
+        :return: a dictionary accessible with sample['image'] and sample['label'] to obtain the image and the label
+        respectively.
+        """
         img_id = self.img_ids[index]
 
         # Load data and get label
@@ -49,12 +54,16 @@ class Dataset(data.Dataset):
 
         # convert 1d list to np array so that Pytorch can easily convert to tensor
         labels = np.array(self.labels_hot[img_id])
-        return input_tensor, labels
+
+        sample = {'image': input_tensor, 'label': labels}
+        return sample
+        # return input_tensor, labels
 
 
-def read_and_partition_data(h5_file, val_frac=0.2, test_frac=0.1):
+def read_and_partition_data(h5_file, limited=False, val_frac=0.2, test_frac=0.1):
     """
     This function reads the image ids from the h5 file and partitions the data into train, validation, and test.
+    :param limited: if True, reads only a limited portion of data (used for testing)
     :param h5_file: -
     :param val_frac: -
     :param test_frac: -
@@ -62,8 +71,21 @@ def read_and_partition_data(h5_file, val_frac=0.2, test_frac=0.1):
     'validation', or 'test' and returns the list of image ids corresponding to that set. labels is accesses
     through labels['img_id'] and returns the list of the labels corresponding to that image. The same holds for
     labels_hot except that it returns the (multiple) hot encoded version of the labels corresponding to the image.
+
+    NOTE: even when setting limited=True, the labels and labels_hot dictionaries contain the key, values for ALL the
+    images, but this is not a problem as the limited labels are in img_ids and only image indexes from there are given
+    to labels and labels_hot to obtain the labels.
     """
     img_ids, labels, labels_hot = read_ids_and_labels(h5_file)
+
+    # limiting the data to a few images if wanted
+    if limited:
+        lim = 100
+        img_ids = img_ids[:lim]  # only this is important, as labels and labels_hot are simply two dictionaries
+        # labels = labels[:lim]
+        # labels_hot = labels_hot[:lim]
+        print(f'In [read_and_partition_data]: limited the data to {lim} images')
+
     data_size = len(img_ids)
 
     val_size = int(val_frac * data_size)
@@ -87,9 +109,9 @@ def read_and_partition_data(h5_file, val_frac=0.2, test_frac=0.1):
         partition[belongs_to].append(img_ids[index])
 
     data_info = (len(partition['train']), len(partition['validation']),
-                 len(partition['test']), len(labels.keys()),len(labels_hot.keys()))
+                 len(partition['test']))  # , len(labels.keys()), len(labels_hot.keys()))
     print('In [read_and_partition_data]: returning with size train: {}, validation: {}, '
-          'test: {}, labels: {}, labels_hot:{}'.format(*data_info))
+          'test: {}'.format(*data_info))  # , labels: {}, labels_hot:{}'.format(*data_info))
 
     return partition, labels, labels_hot
 
@@ -101,7 +123,6 @@ def read_ids_and_labels(h5_file, verbose=False):
     :param verbose: if True, the function prints complete information while reading the data
     :return: img_ids, labels, labels_hot: img_ids is the list containing all the image names, labels and labels hot
     are two dictionaries. For usage please see the documentation of the 'read_and_partition_data' function.
-
     """
     # to be moved to a separate JSON file (maybe)
     pathologies = {'Atelectasis': 0,
