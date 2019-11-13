@@ -4,6 +4,7 @@ import helper
 
 import json
 import argparse
+import os
 
 import torch
 from torch.backends import cudnn
@@ -15,7 +16,10 @@ def main():
     # Since not everybody uses comet, we determine if we should use comet_ml to track the experiment using the args
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_comet', type=bool, default=False)
+    parser.add_argument('--save_checkpoints', type=bool, default=False)
     args = parser.parse_args()
+
+    # print(args.use_comet, args.save_checkpoints)
 
     # reading the other params from the JSON file
     with open('params.json', 'r') as f:
@@ -107,6 +111,16 @@ def main():
             if args.use_comet:
                 tracker.track_metric('train_loss', round(train_loss.item(), 3), optim_step)
                 tracker.track_metric('val_loss', val_loss, optim_step)
+
+            # save the model every 200 steps if wanted by the user
+            if optim_step % 10 == 0:
+                # create the models directory if not exists
+                if not os.path.isdir('models'):
+                    os.mkdir('models')
+
+                path = f'models/unified_net_step_{optim_step}.pt'
+                torch.save(unified_net, path)
+                print(f'Saved the model at: {path}')
 
             # backward and optimization step
             train_loss.backward()
