@@ -1,9 +1,8 @@
 {
-  "max_optim_steps": 1000,
-  "batch_size": 64,
+  "max_epochs": 10,
+  "batch_size": 256,
   "shuffle": true,
   "num_workers": 0,
-  "max_epochs": 100,
 
   "which_resnet": "resnet34",
   "pool_mode": "max",

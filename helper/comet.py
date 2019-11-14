@@ -21,6 +21,6 @@ class CometTracker:
         self.experiment = Experiment(**comet_params)
         self.experiment.log_parameters(run_params)
 
-    def track_metric(self, metric, value, step):
-        self.experiment.log_metric(metric, value, step)
+    def track_metric(self, metric, value):
+        self.experiment.log_metric(metric, value)
 

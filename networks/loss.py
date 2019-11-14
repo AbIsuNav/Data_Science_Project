@@ -9,6 +9,9 @@ def WCEL(fx, label):
     :param label: the true labels, tensor of shape (B, 14)
     :return:
     """
+    # converting the labels batch  to from Long tensor to Float tensor (otherwise won't work on GPU)
+    label = label.float()
+
     P = label.sum()
     N = label.size(0) * label.size(1) - P
     betaP = (P + N) / (P + 1e-5)  # avoid zero in denominator

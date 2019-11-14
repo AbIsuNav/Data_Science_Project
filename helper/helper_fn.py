@@ -1,5 +1,9 @@
 import networks
 
+import os
+
+import torch
+
 
 def compute_val_loss(unified_net, val_loader, device):
     """
@@ -20,3 +24,53 @@ def compute_val_loss(unified_net, val_loader, device):
 
     val_avg = val_loss / len(val_loader)  # taking the average over all images
     return round(val_avg, 3)  # round to three floating points
+
+
+def save_model(model, optimizer, models_folder, epoch):
+    """
+    This function saves the state of the model and optimizer at the given iteration. I save the optimizer because it may
+    be useful later for continuing training.
+    :param model: the model to be saved
+    :param optimizer: the optimizer to be saved
+    :param models_folder: the models folder where the model and optimizer will be saved at
+    :param epoch: the optimization step, used for naming the saved model and optimizer
+    :return: -
+    """
+    # create the models directory if not exists
+    if not os.path.isdir(models_folder):
+        os.mkdir(models_folder)
+        print(f'Models folder created at: {models_folder}/')
+
+    model_name = f'{models_folder}/unified_net_epoch_{epoch}.pt'
+    optimizer_name = f'{models_folder}/optimizer_epoch_{epoch}.pt'
+
+    torch.save(model.state_dict(), model_name)
+    torch.save(optimizer.state_dict(), optimizer_name)
+    print(f'Saved the model and optimizer at: "{model_name}" and "{optimizer_name}"')
+
+
+def load_model(model_name, device, transition_params=None, which_resnet=None, unified_net_params=None):
+    """
+    This function loads a model or an optimizer, based on the model name and the parameters given. It infers from the
+    model name if it should load a model or an optimizer, so the model name is super important.
+    :param model_name:
+    :param device:
+    :param transition_params:
+    :param which_resnet:
+    :param unified_net_params:
+    :return:
+    """
+    # loading a model
+    if 'unified_net' in model_name:
+        unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
+        unified_net.load_state_dict(torch.load(model_name))
+        unified_net.eval()  # putting in evaluation mode (for batch normalization, dropout and so on, if it has any)
+        # do I need to set all param requires_grad to False?
+        return unified_net
+    # loading an optimizer
+    elif 'optimizer' in model_name:
+        optimizer = torch.optim.Adam(unified_net_params)
+        optimizer.load_state_dict(torch.load(model_name))
+        return optimizer
+    else:  # is it the best kind of Exception to be used?
+        raise ValueError('In [load_model]: Model name not supported for loading!')

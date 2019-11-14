@@ -1,3 +1,5 @@
+from comet_ml import Experiment  # do not touch this, comet_ml should be imported before other modules such as torch
+
 import data_handler
 import networks
 import helper
@@ -15,11 +17,14 @@ from torchvision import transforms
 def main():
     # Since not everybody uses comet, we determine if we should use comet_ml to track the experiment using the args
     parser = argparse.ArgumentParser()
-    parser.add_argument('--use_comet', type=bool, default=False)
-    parser.add_argument('--save_checkpoints', type=bool, default=False)
+    parser.add_argument('--use_comet', action='store_true')
+    parser.add_argument('--save_checkpoints', action='store_true')
+    parser.add_argument('--data_limited', action='store_true')
     args = parser.parse_args()
 
-    # print(args.use_comet, args.save_checkpoints)
+    print(f'Running the program with arguments use_comet: {args.use_comet}, '
+          f'save_checkpoints: {args.save_checkpoints}, '
+          f'data_limited: {args.data_limited}')
 
     # reading the other params from the JSON file
     with open('params.json', 'r') as f:
@@ -42,7 +47,7 @@ def main():
 
     # reading image ids and partition them into train, validation, and test sets
     partition, labels, labels_hot = \
-        data_handler.read_and_partition_data(h5_file, limited=True, val_frac=0.2, test_frac=0.1)
+        data_handler.read_and_partition_data(h5_file, limited=args.data_limited, val_frac=0.2, test_frac=0.1)
 
     # image preprocessing functions (not sure why, taken from https://pytorch.org/hub/pytorch_vision_resnet/)
     preprocess = transforms.Compose([
@@ -77,6 +82,7 @@ def main():
         # 'CAM': False,
         # 'r': 10
     }
+
     # resnet = networks.load_resnet(which_resnet).to(device)
     unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 
@@ -84,13 +90,20 @@ def main():
     optimizer = torch.optim.Adam(unified_net.parameters())
 
     # for epoch in range(max_epochs):
-    optim_step = 0
-    validation_interval = 10  # track validation after such a number of steps
-    while optim_step < params['max_optim_steps']:
+    epoch = 0
+    # validation_interval = 10  # print validation loss after such a number of epochs
+    save_model_interval = 1  # save model checkpoints at such a number of epochs
+
+    while epoch < params['max_epochs']:
+        print(f'=========== In epoch: {epoch}')
+
         for i_batch, batch in enumerate(train_loader):
-            print(f'=========== In step: {optim_step}')
+            print(f'Performing on batch: {i_batch}')
             # img_batch, label_batch = img_batch.to(device), label_batch.to(device)
-            img_batch, label_batch = batch['image'].to(device), batch['label'].to(device)
+            img_batch = batch['image'].to(device).float()
+            label_batch = batch['label'].to(device).float()
+            # converted the labels batch  to from Long tensor to Float tensor (otherwise won't work on GPU)
+
             '''print(f'img_batch size: {img_batch.size()}, '
                   f'labels_batch size: {label_batch.size()}')'''
 
@@ -99,33 +112,32 @@ def main():
 
             # getting thr network prediction and computing the loss
             pred = unified_net(img_batch, verbose=False)
+
             train_loss = networks.WCEL(pred, label_batch)
-            print(f'train loss: {round(train_loss.item(), 3)}')  # round to three floating points
+            print(f'train loss: {round(train_loss.item(), 3)}')
 
             # computing the validation loss
-            val_loss = helper.compute_val_loss(unified_net, val_loader, device)
-            if optim_step % validation_interval == 0:
-                print(f'validation loss: {val_loss}')
+            # val_loss = helper.compute_val_loss(unified_net, val_loader, device)
+            # print(f'train loss: {round(train_loss.item(), 3)}, validation loss: {val_loss}')
+
+            # if optim_step % validation_interval == 0:
+            #    print(f'validation loss: {val_loss}')
 
             # tracking the metrics using comet in each iteration
             if args.use_comet:
-                tracker.track_metric('train_loss', round(train_loss.item(), 3), optim_step)
-                tracker.track_metric('val_loss', val_loss, optim_step)
-
-            # save the model every 200 steps if wanted by the user
-            if optim_step % 10 == 0:
-                # create the models directory if not exists
-                if not os.path.isdir('models'):
-                    os.mkdir('models')
-
-                path = f'models/unified_net_step_{optim_step}.pt'
-                torch.save(unified_net, path)
-                print(f'Saved the model at: {path}')
+                # tracker.track_metric('train_loss', round(train_loss.item(), 3), epoch)
+                tracker.track_metric('train_loss', round(train_loss.item(), 3))
+                # tracker.track_metric('val_loss', val_loss, optim_step)
 
             # backward and optimization step
             train_loss.backward()
             optimizer.step()
-            optim_step += 1
+
+        # save the model every several steps if wanted by the user
+        if epoch % save_model_interval == 0 and args.save_checkpoints:
+            models_folder = 'models'
+            helper.save_model(unified_net, optimizer, models_folder, epoch)
+        epoch += 1
 
 
 if __name__ == '__main__':
