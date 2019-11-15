@@ -5,7 +5,16 @@
   "num_workers": 0,
 
   "which_resnet": "resnet34",
-  "pool_mode": "max",
+
+  "transition_params": {
+    "input_features": 512,
+    "S": 7,
+    "D": 512,
+    "n_classes": 14,
+
+    "pool_mode": "lse",
+    "r": 5
+  },
 
   "data_folder": "data_big",
   "h5_file": "chest_xray.h5"

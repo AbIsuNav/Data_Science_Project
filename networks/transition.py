@@ -11,7 +11,7 @@ class TransitionLayer(nn.Module):
     input: output of last convolutional layer in ResNet (with a size of batch_size x D x S x S)
     output: weighted spatial activation maps for each disease class (with a size of batch_size x S × S × C)
     """
-    def __init__(self, pool_mode, input_features, S, D, n_classes, r=0):
+    def __init__(self, pool_mode, input_features, S, D, n_classes, r=0.1):
         super(TransitionLayer, self).__init__()
         self.S = S
         self.r = r
@@ -21,6 +21,8 @@ class TransitionLayer(nn.Module):
         self.bn = nn.BatchNorm2d(D)
         # After fc dim=(1, n_classes)
         self.fc = nn.Linear(D, n_classes)
+
+        print('In [TransitionLayer]: constructor is built with pooling mode:', self.pool_mode, '\n')
 
     def forward(self, x, CAM=False, verbose=False):
         """
@@ -54,28 +56,34 @@ class TransitionLayer(nn.Module):
 
         return out
 
-    def global_pool(self, x, app=False):
+    def global_pool(self, x, app=True):
         """
         The pooling layer, currently could be either determined Log-Sum-Exp(LSE) pooling (mode='lse') or global max
         pooling (mode='max')
         :param x:
-        :param mode:
-        :param app:
+        :param app: if True, the approximated version of LSE is used.
         :return:
         """
         if self.pool_mode == 'lse':  # log-sum-exp pooling
             if app:
-            # Eq(3) version, used in Xray paper
+                # Eq(3) version, used in Xray paper
                 x_star = torch.abs(x).max(dim=-1)[0].max(dim=-1)[0]
                 x_p = x_star + 1/self.r*torch.log(1/self.S*torch.exp(self.r*(x-x_star.unsqueeze(-1).unsqueeze(-1))).sum(-1).sum(-1))
             else:
-            # Eq(2)
+                # Eq(2)
                 x_p = 1/self.r*torch.log(1/self.S*torch.exp(x*self.r).sum(-1).sum(-1))
             return x_p
 
         elif self.pool_mode == 'max':
             height, width = x.shape[2], x.shape[3]  # x of shape (B, C, H, W)
             return F.max_pool2d(x, kernel_size=(height, width)).squeeze(dim=3).squeeze(dim=2)  # (B, C, 1, 1) -> (B, C)
+
+        elif self.pool_mode == 'avg':
+            height, width = x.shape[2], x.shape[3]  # x of shape (B, C, H, W)
+            return F.avg_pool2d(x, kernel_size=(height, width)).squeeze(dim=3).squeeze(dim=2)  # (B, C, 1, 1) -> (B, C)
+
+        else:  # is it the best Exception to be thrown?
+            raise ValueError('In [global_pool]: pooling mode not implemented!')
 
 
 if __name__=='__main__':

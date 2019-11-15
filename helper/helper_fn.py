@@ -3,6 +3,7 @@ import networks
 import os
 
 import torch
+from torchvision import transforms
 
 
 def compute_val_loss(unified_net, val_loader, device):
@@ -74,3 +75,14 @@ def load_model(model_name, device, transition_params=None, which_resnet=None, un
         return optimizer
     else:  # is it the best kind of Exception to be used?
         raise ValueError('In [load_model]: Model name not supported for loading!')
+
+
+def preprocess_fn():
+    # image preprocessing functions (not sure why, taken from https://pytorch.org/hub/pytorch_vision_resnet/)
+    preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    return preprocess

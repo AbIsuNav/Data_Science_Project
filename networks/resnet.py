@@ -250,6 +250,8 @@ def load_resnet(verbose=False):
     # model = torch.hub.load('pytorch/vision', which_resnet, pretrained=True)
     # model.eval()  # model in evaluation mode (e.g. change behavior of batch normalization)
     resnet_model = models.resnet34(pretrained=True)
+    resnet_model.eval()  # put the model in evaluation mode (for batch normalization etc.)
+
     # freezing the parameters
     for param in resnet_model.parameters():
         param.requires_grad = False

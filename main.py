@@ -11,7 +11,6 @@ import os
 import torch
 from torch.backends import cudnn
 from torch.utils import data
-from torchvision import transforms
 
 
 def main():
@@ -45,17 +44,17 @@ def main():
     num_workers = params['num_workers']
     max_epochs = params['max_epochs']
 
+    which_resnet = params['which_resnet']
+    transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
+    print('Transition params:', transition_params)
+    print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
+
     # reading image ids and partition them into train, validation, and test sets
     partition, labels, labels_hot = \
         data_handler.read_and_partition_data(h5_file, limited=args.data_limited, val_frac=0.2, test_frac=0.1)
 
-    # image preprocessing functions (not sure why, taken from https://pytorch.org/hub/pytorch_vision_resnet/)
-    preprocess = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+    # not sure why such preprocessing is needed (taken from taken from https://pytorch.org/hub/pytorch_vision_resnet/)
+    preprocess = helper.preprocess_fn()
 
     # cuda for PyTorch
     use_cuda = torch.cuda.is_available()
@@ -71,19 +70,6 @@ def main():
     val_loader = data.DataLoader(dataset=val_set, batch_size=batch_size,
                                  shuffle=False, num_workers=num_workers)
 
-    # training
-    which_resnet = params['which_resnet']
-    transition_params = {
-        'input_features': 512,
-        'S': 7,  # spatial dimension of the resnet output (for our 224 x 224 images)
-        'D': 512,  # the channel dimension of the resnet output
-        'n_classes': 14,
-        'pool_mode': params['pool_mode']
-        # 'CAM': False,
-        # 'r': 10
-    }
-
-    # resnet = networks.load_resnet(which_resnet).to(device)
     unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 
     # Adam optimizer with default parameters
@@ -91,10 +77,10 @@ def main():
 
     # for epoch in range(max_epochs):
     epoch = 0
-    # validation_interval = 10  # print validation loss after such a number of epochs
     save_model_interval = 1  # save model checkpoints at such a number of epochs
+    # validation_interval = 10  # print validation loss after such a number of epochs
 
-    while epoch < params['max_epochs']:
+    while epoch < max_epochs:
         print(f'=========== In epoch: {epoch}')
 
         for i_batch, batch in enumerate(train_loader):
@@ -103,9 +89,6 @@ def main():
             img_batch = batch['image'].to(device).float()
             label_batch = batch['label'].to(device).float()
             # converted the labels batch  to from Long tensor to Float tensor (otherwise won't work on GPU)
-
-            '''print(f'img_batch size: {img_batch.size()}, '
-                  f'labels_batch size: {label_batch.size()}')'''
 
             # making gradients zero in each optimization step
             optimizer.zero_grad()
@@ -135,7 +118,14 @@ def main():
 
         # save the model every several steps if wanted by the user
         if epoch % save_model_interval == 0 and args.save_checkpoints:
-            models_folder = 'models'
+            pool_mode = transition_params['pool_mode']  # extracted for saving the models
+
+            # also use the value of r for saving the model in case the pool mode is 'lse'
+            if pool_mode == 'lse':
+                r = transition_params['r']
+                pool_mode += f'_r={r}'
+
+            models_folder = f'models/max_epochs={max_epochs}_batch_size={batch_size}_pool_mode={pool_mode}'
             helper.save_model(unified_net, optimizer, models_folder, epoch)
         epoch += 1
 
