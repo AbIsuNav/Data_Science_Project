@@ -16,9 +16,9 @@ from torch.utils import data
 def main():
     # Since not everybody uses comet, we determine if we should use comet_ml to track the experiment using the args
     parser = argparse.ArgumentParser()
-    parser.add_argument('--use_comet', action='store_true')
-    parser.add_argument('--save_checkpoints', action='store_true')
-    parser.add_argument('--data_limited', action='store_true')
+    parser.add_argument('--use_comet', action='store_true')  # if used, the experiment would be tracked by comet
+    parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
+    parser.add_argument('--data_limited', action='store_true')   # if used, only 100 images are chosen for training
     args = parser.parse_args()
 
     print(f'Running the program with arguments use_comet: {args.use_comet}, '
