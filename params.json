@@ -12,7 +12,7 @@
     "D": 512,
     "n_classes": 14,
 
-    "pool_mode": "lse",
+    "pool_mode": "max",
     "r": 5
   },
 

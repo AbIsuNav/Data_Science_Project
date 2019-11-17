@@ -49,9 +49,13 @@ def main():
     print('Transition params:', transition_params)
     print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
 
-    # reading image ids and partition them into train, validation, and test sets
+    '''# reading image ids and partition them into train, validation, and test sets
     partition, labels, labels_hot = \
-        data_handler.read_and_partition_data(h5_file, limited=args.data_limited, val_frac=0.2, test_frac=0.1)
+        data_handler.read_and_partition_data(h5_file, limited=args.data_limited, val_frac=0.2, test_frac=0.1)'''
+
+    # read the data and the labels
+    partition, labels, labels_hot = \
+        data_handler.read_already_partitioned(h5_file)
 
     # not sure why such preprocessing is needed (taken from taken from https://pytorch.org/hub/pytorch_vision_resnet/)
     preprocess = helper.preprocess_fn()

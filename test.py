@@ -77,8 +77,28 @@ def test_load_models():
     plot_ROC(total_predicted, total_labels, pathologies, save=True)
 
 
+def test_read_data():
+    h5_file = 'chest_xray.h5'
+    # img_ids, labels, labels_hot = data_handler.read_ids_and_labels(h5_file)
+    partition, labels, labels_hot = data_handler.read_already_partitioned(h5_file)
+
+    print(len(partition['train']), len(partition['test']))
+    print(partition['train'][:10])
+    print(partition['validation'][:10])
+    print(partition['test'][:10])
+
+    '''for k, v in labels.items():
+        print(k, v)
+        print(type(k), type(v))
+
+    for k, v in labels_hot.items():
+        print(k, v)
+        print(type(k), type(v))'''
+
+
 def main():
-    test_load_models()
+    # test_load_models()
+    test_read_data()
 
 
 if __name__ == '__main__':

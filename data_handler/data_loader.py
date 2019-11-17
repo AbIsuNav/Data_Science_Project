@@ -60,9 +60,63 @@ class Dataset(data.Dataset):
         # return input_tensor, labels
 
 
+def read_already_partitioned(h5_file):
+    """
+    This function reads all the 112120 images of the dataset, and partitions them according to the 'train_val_list.txt'
+    and 'test_list.txt' files obtained from the dataset website. It also extracts the labels from the .h5 file already
+    created to simplify this label extraction process. It then stores the extracted labels as a Python dictionary
+    for future references.
+
+    :param h5_file: -
+    :return: the dictionaries partition, labels, labels_hot. Read the 'read_ids_and_labels' function for more info.
+    """
+    if not os.path.exists('data/formatted_data.npy'):
+        print('In [read_already_partitioned]: Reading the h5 file and saving the formatted data...')
+        img_ids, labels, labels_hot = read_ids_and_labels(h5_file)
+        save_formatted_data(img_ids, labels, labels_hot)
+    else:
+        print('In [read_already_partitioned]: "data/formatted_data.npy" already exists. Reading the formatted data...')
+        # refer to: https://stackoverflow.com/questions/19201290/how-to-save-a-dictionary-to-a-file
+        formatted_data = np.load('data/formatted_data.npy', allow_pickle=True).item()
+        img_ids = formatted_data['image_ids']  # not actually used since the image ids are already in the .txt files
+        labels = formatted_data['labels']
+        labels_hot = formatted_data['labels_hot']
+
+    # read the .txt file containing the image ids used for training, validation, and test
+    with open('data/train_val_list.txt', 'r') as f:
+        train_val_list = f.read().splitlines()
+
+    with open('data/test_list.txt', 'r') as f:
+        test_list = f.read().splitlines()
+
+    # extract the train_val list to train and validation lists, based on the percentages in the paper
+    train_size = int(.875 * len(train_val_list))  # 70% out of 80% for training, 10% out of 80% for validation
+    train_list = train_val_list[:train_size]
+    val_list = train_val_list[train_size:]
+
+    # the value for each key is the list of ids for the corresponding set
+    partition = {
+        'train': train_list,
+        'validation': val_list,
+        'test': test_list
+    }
+
+    data_info = (len(partition['train']), len(partition['validation']),
+                 len(partition['test']))
+    print('In [read_already_partitioned]: returning with size train: {}, validation: {}, '
+          'test: {}'.format(*data_info))
+
+    return partition, labels, labels_hot
+
+
 def read_and_partition_data(h5_file, limited=False, val_frac=0.2, test_frac=0.1):
     """
     This function reads the image ids from the h5 file and partitions the data into train, validation, and test.
+    Note: This function was written to read 18000 images from the chest_xray_18000.h5 file, extract the labels, and
+    then partition it manually using the given fractions. If one wants to read ALL the 112120 images, he/she should
+    use the 'read_already_partitioned' function which uses the partition given in the dataset website (using the
+    'train_val_list.txt' and 'test_list.txt' files)
+
     :param limited: if True, reads only a limited portion of data (used for testing)
     :param h5_file: -
     :param val_frac: -
@@ -146,7 +200,7 @@ def read_ids_and_labels(h5_file, verbose=False):
         finding_labels = h5_data['Finding Labels']
 
         data_size = len(image_ids)
-        print('In [read_indices_and_partition]: found {} images in the h5 file'.format(data_size))
+        print(f'In [read_indices_and_partition]: found {data_size} images in the h5 file. Extracting the labels...')
 
         img_ids, labels, labels_hot = [], {}, {}
 
@@ -180,4 +234,24 @@ def read_ids_and_labels(h5_file, verbose=False):
             # labels_hot.append(diseases_hot_enc)
             labels_hot.update({img_id: diseases_hot_enc})
 
+    print('In [read_indices_and_labels]: reading imag ids and extracting the labels done.')
     return img_ids, labels, labels_hot
+
+
+def save_formatted_data(image_ids, labels, labels_hot):
+    """
+    This function saves the image ids, labels, and labels_hot into an .npy file for further reference. This is useful
+    because reading the .h5 file and extracting the labels and labels_hot every time is time-consuming for all the
+    112120 images.
+    :param image_ids: -
+    :param labels: -
+    :param labels_hot: -
+    :return: -
+    """
+    # packing all the data into a dictionary
+    formatted_data = {'image_ids': image_ids,
+                      'labels': labels,
+                      'labels_hot': labels_hot}
+
+    np.save('data/formatted_data.npy', formatted_data)
+    print('In [save_formatted_data]: save the formatted data.')
