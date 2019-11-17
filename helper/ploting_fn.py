@@ -6,7 +6,7 @@ import cv2
 def plot_ROC(prediction, target, class_names, save=False):
     """
     This function plots the ROC graph and prints the AUC values for each class
-    :param prediction: a one-hot array [n_points, n_classes] with the predicted classification
+    :param predicted: a one-hot array [n_points, n_classes] with the predicted classification
     :param target: a one-hot array [n_points, n_classes] with the correct classification
     :param class_names: list of strings with names of the classes on the same order as the last arrays [n_classes]
     :param save: boolean, True to save the plot as roc_curve.png
@@ -16,8 +16,9 @@ def plot_ROC(prediction, target, class_names, save=False):
     fpr = dict()
     tpr = dict()
     roc_auc = dict()
+    target = target.astype(int)
     for i in range(n_classes):
-        fpr[i], tpr[i], _ = roc_curve(prediction[:, i], target[:, i])
+        fpr[i], tpr[i], _ = roc_curve(target[:, i], prediction[:, i])
         roc_auc[i] = auc(fpr[i], tpr[i])
 
     # Plot ROC curve

@@ -1,10 +1,12 @@
-import networks
-from networks import UnifiedNetwork
-import helper
-
+import json
+import numpy as np
 import torch
-from torchsummary import summary
-from torchvision import models
+from torch.utils import data
+
+import data_handler
+import helper
+import networks
+from helper.ploting_fn import plot_ROC
 
 
 def test_resnet_get_last_layer():
@@ -23,9 +25,10 @@ def test_unified_net():
 
 
 def test_load_models():
-    model_name = "models/unified_net_step_1.pt"
-    optimizer_name = 'models/optimizer_step_1.pt'
-
+    model_name = "models/unified_net_step_9.pt"
+    # optimizer_name = 'models/optimizer_step_1.pt'
+    with open('params.json', 'r') as f:
+        params = json.load(f)
     transition_params = {
         'input_features': 512,
         'S': 7,  # spatial dimension of the resnet output (for our 224 x 224 images)
@@ -35,14 +38,47 @@ def test_load_models():
         # 'CAM': False,
         # 'r': 10
     }
-    unified_net = helper.load_model(model_name, torch.device('cpu'), transition_params, 'resnet34')
-    optimizer = helper.load_model(optimizer_name, torch.device('cpu'), unified_net.parameters())
-    # print(unified_net)
-    print(optimizer.parameters())
+    # data files
+    data_folder = params['data_folder']
+    h5_file = params['h5_file']
+    pathologies = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis',
+                   'Hernia',
+                   'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+    # training params
+    batch_size = params['batch_size']
+    shuffle = params['shuffle']
+    num_workers = params['num_workers']
+    # not sure why such preprocessing is needed (taken from taken from https://pytorch.org/hub/pytorch_vision_resnet/)
+    preprocess = helper.preprocess_fn()
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+    partition, labels, labels_hot = \
+        data_handler.read_and_partition_data(h5_file, val_frac=0.2, test_frac=0.1)
+    train_set = data_handler.Dataset(partition['train'], labels, labels_hot, data_folder, preprocess, device)
+    train_loader = data.DataLoader(dataset=train_set, batch_size=batch_size,
+                                   shuffle=shuffle, num_workers=num_workers)
+    # creating the validation data loader
+    # val_set = data_handler.Dataset(partition['validation'], labels, labels_hot, data_folder, preprocess, device)
+    # val_loader = data.DataLoader(dataset=val_set, batch_size=batch_size,
+    #                             shuffle=False, num_workers=num_workers)
+    total_predicted = np.zeros((batch_size, 14))
+    total_labels = np.zeros((batch_size, 14))
+    for i_batch, batch in enumerate(train_loader):
+        img_batch = batch['image'].to(device).float()
+        label_batch = batch['label'].to(device).float()
+        net = helper.load_model(model_name, torch.device('cpu'), transition_params, 'resnet34')
+        pred = net(img_batch, verbose=False)
+        if i_batch > 0:
+            total_predicted = np.append(total_predicted, pred.detach().numpy(), axis=0)
+            total_labels = np.append(total_labels, label_batch.detach().numpy(), axis=0)
+        else:
+            total_predicted = pred.detach().numpy()
+            total_labels = label_batch.detach().numpy()
+    plot_ROC(total_predicted, total_labels, pathologies, save=True)
 
 
 def main():
-    test_resnet_get_last_layer()
+    test_load_models()
 
 
 if __name__ == '__main__':

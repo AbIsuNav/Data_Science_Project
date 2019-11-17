@@ -21,7 +21,7 @@ class TransitionLayer(nn.Module):
         self.bn = nn.BatchNorm2d(D)
         # After fc dim=(1, n_classes)
         self.fc = nn.Linear(D, n_classes)
-
+        self.sig = nn.Sigmoid()
         print('In [TransitionLayer]: constructor is built with pooling mode:', self.pool_mode, '\n')
 
     def forward(self, x, CAM=False, verbose=False):
@@ -43,12 +43,12 @@ class TransitionLayer(nn.Module):
             x = self.global_pool(x)
             if verbose:
                 print(f'In [forward] of TransitionLayer: output of global_pool of shape: {x.shape}')
-
-            out = torch.exp(self.fc(x))
+            out = self.fc(x)
+            #out = torch.exp(self.fc(x))
             if verbose:
                 print(f'In [forward] of TransitionLayer: output of the fc layer of shape: {out.shape}')
-
-            out = out / out.sum(-1).view(-1, 1)
+            out = self.sig(out)
+            #out = out / out.sum(-1).view(-1, 1)
             if verbose:
                 print(f'In [forward] of TransitionLayer: output of the normalization of shape: {out.shape}')
         else:  # class activation map -- for heatmap
