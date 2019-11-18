@@ -14,8 +14,9 @@ def compute_val_loss(unified_net, val_loader, device):
     :param device: -
     :return: the float number representing the validation loss
     """
-    val_loss = 0
+    print(f'\nIn [compute_val_loss]: computing validation loss for {len(val_loader)} batches...')
 
+    val_loss = 0
     for i_batch, batch in enumerate(val_loader):
         img_batch, label_batch = batch['image'].to(device), batch['label'].to(device)
         val_pred = unified_net(img_batch)
@@ -23,8 +24,13 @@ def compute_val_loss(unified_net, val_loader, device):
         batch_loss = networks.WCEL(val_pred, label_batch)
         val_loss += batch_loss.item()
 
-    val_avg = val_loss / len(val_loader)  # taking the average over all images
-    return round(val_avg, 3)  # round to three floating points
+        # print(f'batch: {i_batch}, val_loss: {batch_loss.item()}')
+
+    val_avg = val_loss / len(val_loader)  # taking the average over all the batches
+    val_avg = round(val_avg, 3)  # round to three floating points
+
+    print(f'In [compute_val_loss]: validation loss: {val_avg} \n')
+    return val_avg
 
 
 def save_model(model, optimizer, models_folder, epoch):

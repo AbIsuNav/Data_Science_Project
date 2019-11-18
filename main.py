@@ -7,18 +7,19 @@ import helper
 import json
 import argparse
 import os
+import math
 
 import torch
 from torch.backends import cudnn
 from torch.utils import data
 
 
-def main():
+def read_params_and_args():
     # Since not everybody uses comet, we determine if we should use comet_ml to track the experiment using the args
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_comet', action='store_true')  # if used, the experiment would be tracked by comet
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
-    parser.add_argument('--data_limited', action='store_true')   # if used, only 100 images are chosen for training
+    parser.add_argument('--data_limited', action='store_true')  # if used, only 100 images are chosen for training
     args = parser.parse_args()
 
     print(f'Running the program with arguments use_comet: {args.use_comet}, '
@@ -29,10 +30,101 @@ def main():
     with open('params.json', 'r') as f:
         params = json.load(f)
 
-    # initialize our comet experiment to track the run, if wanted by the user
-    if args.use_comet:
-        tracker = helper.init_comet(params)
-        print("Comet experiment initialized...")
+    return args, params
+
+
+def train(model, optimizer, model_params, train_params, args, es_params, tracker=None):
+    max_epochs = train_params['max_epochs']
+    batch_size = train_params['batch_size']
+    save_model_interval = train_params['save_model_interval']
+
+    train_loader, val_loader = train_params['train_loader'], train_params['val_loader']
+    device = train_params['device']
+    transition_params = model_params['transition_params']
+
+    # setting variables for early stopping, if wanted by the user
+    if es_params is not None:
+        prev_val_loss = math.inf  # set to inf so that the first validation loss is less than this
+        no_improvements = 0  # the number consecutive epochs through which validation loss has not improved
+
+    epoch = 0
+    while epoch < max_epochs:
+        print(f'{"=" * 40} In epoch: {epoch} {"=" * 40}')
+        print(f'Training on {len(train_loader)} batches...')
+
+        for i_batch, batch in enumerate(train_loader):
+            # print(f'Performing on batch: {i_batch}')
+            # img_batch, label_batch = img_batch.to(device), label_batch.to(device)
+            img_batch = batch['image'].to(device).float()
+            label_batch = batch['label'].to(device).float()
+            # converted the labels batch  to from Long tensor to Float tensor (otherwise won't work on GPU)
+
+            # making gradients zero in each optimization step
+            optimizer.zero_grad()
+
+            # getting the network prediction and computing the loss
+            pred = model(img_batch, verbose=False)
+
+            train_loss = networks.WCEL(pred, label_batch)
+            if i_batch % 50 == 0:
+                print(f'Batch: {i_batch}, train loss: {round(train_loss.item(), 3)}')
+
+            # tracking the metrics using comet in each iteration
+            if args.use_comet:
+                tracker.track_metric('train_loss', round(train_loss.item(), 3))
+
+            # backward and optimization step
+            train_loss.backward()
+            optimizer.step()
+
+        # save the model every several steps if wanted by the user
+        if epoch % save_model_interval == 0 and args.save_checkpoints:
+            pool_mode = transition_params['pool_mode']  # extracted for saving the models
+
+            # also use the value of r for saving the model in case the pool mode is 'lse'
+            if pool_mode == 'lse':
+                r = transition_params['r']
+                pool_mode += f'_r={r}'
+
+            # determining this part of the models folder based on whether we are using early stopping
+            if es_params is None:
+                max_epochs_name = max_epochs
+            else:
+                max_epochs_name = f'{max_epochs}_es_patience={es_params["patience"]}_min_delta={es_params["min_delta"]}'
+
+            models_folder = f'models/max_epochs={max_epochs_name}_batch_size={batch_size}_pool_mode={pool_mode}'
+            helper.save_model(model, optimizer, models_folder, epoch)
+
+        # check validation loss for early stopping
+        if es_params is not None:
+            val_loss = helper.compute_val_loss(model, val_loader, device)
+            print(f'\nIn [train]: prev_val_loss: {prev_val_loss}, current_val_loss: {val_loss}')
+
+            # track the validation loss using comet, if wanted by the user
+            if args.use_comet:
+                tracker.track_metric('val_loss', val_loss)
+
+            # check if the validation loss is improved compared to the previous epochs
+            if val_loss > prev_val_loss or prev_val_loss - val_loss < es_params['min_delta']:
+                no_improvements += 1
+                print(f'In [train]: no_improvements incremented to {no_improvements} \n\n')
+
+            else:  # if it is improved, reset no_improvements
+                no_improvements = 0
+                print(f'In [train]: no_improvements set to 0 \n\n')
+
+            # update the validation loss for the next epoch
+            prev_val_loss = val_loss
+
+            # terminate training after several epochs without validation improvement
+            if no_improvements > es_params['patience']:
+                print(f'In [train]: no_improvements = {no_improvements}, training terminated...')
+                break
+        epoch += 1
+
+
+def main():
+    args, params = read_params_and_args()
 
     # data files
     data_folder = params['data_folder']
@@ -43,11 +135,12 @@ def main():
     shuffle = params['shuffle']
     num_workers = params['num_workers']
     max_epochs = params['max_epochs']
+    save_model_interval = params['save_model_interval']
 
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
-    print('Transition params:', transition_params)
-    print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
+    print('In [main]: transition params:', transition_params)
+    # print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
 
     '''# reading image ids and partition them into train, validation, and test sets
     partition, labels, labels_hot = \
@@ -65,73 +158,37 @@ def main():
     device = torch.device("cuda:0" if use_cuda else "cpu")
     cudnn.benchmark = True  # this finds the optimum algorithm for the hardware if possible by kind of auto-tuning
 
-    # creating the train data loader
-    train_set = data_handler.Dataset(partition['train'], labels, labels_hot, data_folder, preprocess, device)
-    train_loader = data.DataLoader(dataset=train_set, batch_size=batch_size,
-                                   shuffle=shuffle, num_workers=num_workers)
-    # creating the validation data loader
-    val_set = data_handler.Dataset(partition['validation'], labels, labels_hot, data_folder, preprocess, device)
-    val_loader = data.DataLoader(dataset=val_set, batch_size=batch_size,
-                                 shuffle=False, num_workers=num_workers)
+    # creating the train and validation data loaders
+    loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
+    train_loader, val_loader = \
+        data_handler.create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params)
 
+    # the model
     unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 
     # Adam optimizer with default parameters
     optimizer = torch.optim.Adam(unified_net.parameters())
 
-    # for epoch in range(max_epochs):
-    epoch = 0
-    save_model_interval = 1  # save model checkpoints at such a number of epochs
-    # validation_interval = 10  # print validation loss after such a number of epochs
+    # setting the training params and model params used during training
+    model_params = {'transition_params': transition_params}
+    train_params = {'max_epochs': max_epochs,
+                    'batch_size': batch_size,
+                    'save_model_interval': save_model_interval,
+                    'train_loader': train_loader,
+                    'val_loader': val_loader,
+                    'device': device}
 
-    while epoch < max_epochs:
-        print(f'=========== In epoch: {epoch}')
+    # params for early stopping, set to None if not interested in early stopping
+    es_params = params['es_params']
 
-        for i_batch, batch in enumerate(train_loader):
-            print(f'Performing on batch: {i_batch}')
-            # img_batch, label_batch = img_batch.to(device), label_batch.to(device)
-            img_batch = batch['image'].to(device).float()
-            label_batch = batch['label'].to(device).float()
-            # converted the labels batch  to from Long tensor to Float tensor (otherwise won't work on GPU)
+    # initialize our comet experiment to track the run, if wanted by the user
+    if args.use_comet:
+        tracker = helper.init_comet(params)
+        print("In [main]: comet experiment initialized...")
+        train(unified_net, optimizer, model_params, train_params, args, es_params, tracker)
 
-            # making gradients zero in each optimization step
-            optimizer.zero_grad()
-
-            # getting thr network prediction and computing the loss
-            pred = unified_net(img_batch, verbose=False)
-
-            train_loss = networks.WCEL(pred, label_batch)
-            print(f'train loss: {round(train_loss.item(), 3)}')
-
-            # computing the validation loss
-            # val_loss = helper.compute_val_loss(unified_net, val_loader, device)
-            # print(f'train loss: {round(train_loss.item(), 3)}, validation loss: {val_loss}')
-
-            # if optim_step % validation_interval == 0:
-            #    print(f'validation loss: {val_loss}')
-
-            # tracking the metrics using comet in each iteration
-            if args.use_comet:
-                # tracker.track_metric('train_loss', round(train_loss.item(), 3), epoch)
-                tracker.track_metric('train_loss', round(train_loss.item(), 3))
-                # tracker.track_metric('val_loss', val_loss, optim_step)
-
-            # backward and optimization step
-            train_loss.backward()
-            optimizer.step()
-
-        # save the model every several steps if wanted by the user
-        if epoch % save_model_interval == 0 and args.save_checkpoints:
-            pool_mode = transition_params['pool_mode']  # extracted for saving the models
-
-            # also use the value of r for saving the model in case the pool mode is 'lse'
-            if pool_mode == 'lse':
-                r = transition_params['r']
-                pool_mode += f'_r={r}'
-
-            models_folder = f'models/max_epochs={max_epochs}_batch_size={batch_size}_pool_mode={pool_mode}'
-            helper.save_model(unified_net, optimizer, models_folder, epoch)
-        epoch += 1
+    else:
+        train(unified_net, optimizer, model_params, train_params, args, es_params)
 
 
 if __name__ == '__main__':

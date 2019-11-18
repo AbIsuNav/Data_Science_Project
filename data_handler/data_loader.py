@@ -94,6 +94,8 @@ def read_already_partitioned(h5_file):
     train_list = train_val_list[:train_size]
     val_list = train_val_list[train_size:]
 
+    # train_list = train_val_list[:300]
+
     # the value for each key is the list of ids for the corresponding set
     partition = {
         'train': train_list,
@@ -255,3 +257,19 @@ def save_formatted_data(image_ids, labels, labels_hot):
 
     np.save('data/formatted_data.npy', formatted_data)
     print('In [save_formatted_data]: save the formatted data.')
+
+
+def create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params):
+    batch_size = loader_params['batch_size']
+    shuffle = loader_params['shuffle']
+    num_workers = loader_params['num_workers']
+
+    # creating the train data loader
+    train_set = Dataset(partition['train'], labels, labels_hot, data_folder, preprocess, device)
+    train_loader = data.DataLoader(dataset=train_set, batch_size=batch_size,
+                                   shuffle=shuffle, num_workers=num_workers)
+    # creating the validation data loader
+    val_set = Dataset(partition['validation'], labels, labels_hot, data_folder, preprocess, device)
+    val_loader = data.DataLoader(dataset=val_set, batch_size=batch_size,
+                                 shuffle=False, num_workers=num_workers)
+    return train_loader, val_loader
