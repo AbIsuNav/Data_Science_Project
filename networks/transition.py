@@ -52,7 +52,10 @@ class TransitionLayer(nn.Module):
             if verbose:
                 print(f'In [forward] of TransitionLayer: output of the normalization of shape: {out.shape}')
         else:  # class activation map -- for heatmap
-            out = [torch.einsum(("ab, bcd ->acd"), (self.fc.weight.data, x[i])) for i in range(x.size(0))]
+            out = [torch.einsum(("ab, bcd ->acd"), (self.fc.weight.data, x[i])).unsqueeze(0) for i in range(x.size(0))]
+            # make it a tensor
+            out = torch.cat(out)
+            # need normalization(done in the plot_heatmap)
 
         return out
 
@@ -96,8 +99,8 @@ if __name__=='__main__':
     batch_size = 3
 	# test
     sample_input = torch.ones(size=(batch_size, D, S, S), requires_grad=False)
-    transition = TransitionLayer(input_features, S, D, n_classes, r=r)
-    out = transition(sample_input, CAM=False)
+    transition = TransitionLayer('lse', input_features, S, D, n_classes, r=r)
+    out = transition(sample_input, CAM=True)
     for i in range(len(out)):
         for c in range(n_classes):
             plt.pcolormesh(out[i][c].detach().numpy())
