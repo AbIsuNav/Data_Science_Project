@@ -19,6 +19,7 @@ def read_params_and_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_comet', action='store_true')  # if used, the experiment would be tracked by comet
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
+    parser.add_argument('--lr', type=float, default=0.001)  # learning rate as argument, only used for grid search
     parser.add_argument('--data_limited', action='store_true')  # if used, only 100 images are chosen for training
     args = parser.parse_args()
 
@@ -190,7 +191,9 @@ def main():
     unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 
     # Adam optimizer with default parameters
-    optimizer = torch.optim.Adam(unified_net.parameters())
+    lr = args.lr
+    optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr)
+    print(f'In [main]: created the Adam optimizer with learning rate: {lr}')
 
     # setting the training params and model params used during training
     model_params = {'transition_params': transition_params}
