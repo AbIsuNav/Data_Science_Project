@@ -27,7 +27,7 @@ class TransitionLayer(nn.Module):
         # After fc dim=(1, n_classes)
         self.fc = nn.Linear(D, n_classes)
         self.sig = nn.Sigmoid()
-        print(f'In [TransitionLayer]: constructor is built with pooling mode: {self.pool_mode}, '
+        print(f'In [TransitionLayer]: constructor is built with pooling mode: "{self.pool_mode}", '
               f'include_1x1_conv: {self.include_1x1_conv} \n')
 
     def forward(self, x, CAM=False, verbose=False):

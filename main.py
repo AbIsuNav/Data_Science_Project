@@ -19,7 +19,10 @@ def read_params_and_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_comet', action='store_true')  # if used, the experiment would be tracked by comet
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
-    parser.add_argument('--lr', type=float, default=0.001)  # learning rate as argument, only used for grid search
+    parser.add_argument('--lr', type=float, default=0.001)  # setting lr, may be removed after grid search
+    parser.add_argument('--max_epochs', type=int, default=30)  # setting the max epoch, may be removed after grid search
+
+    # we probably do not use this anymore
     parser.add_argument('--data_limited', action='store_true')  # if used, only 100 images are chosen for training
     args = parser.parse_args()
 
@@ -45,7 +48,7 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
 
     # count trainable params
     num_learnable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f'In [train]: number of learnable params of the model: {num_learnable_params} \n')
+    print(f'In [train]: number of learnable params of the model: {num_learnable_params}, max_epochs = {max_epochs} \n')
 
     # setting variables for early stopping, if wanted by the user
     if es_params is not None:
@@ -159,7 +162,8 @@ def main():
     batch_size = params['batch_size']
     shuffle = params['shuffle']
     num_workers = params['num_workers']
-    max_epochs = params['max_epochs']
+    # max_epochs = params['max_epochs']
+    max_epochs = args.max_epochs
     save_model_interval = params['save_model_interval']
 
     # resnet and transition params
