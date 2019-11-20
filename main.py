@@ -112,7 +112,10 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
             else:
                 max_epochs_name = f'{max_epochs}_es_patience={es_params["patience"]}_min_delta={es_params["min_delta"]}'
 
-            models_folder = f'models/max_epochs={max_epochs_name}_batch_size={batch_size}_pool_mode={pool_mode}'
+            models_folder = f'models/max_epochs={max_epochs_name}_' \
+                            f'batch_size={batch_size}_' \
+                            f'pool_mode={pool_mode}_' \
+                            f'lr={args.lr}'
             helper.save_model(model, optimizer, models_folder, epoch)
 
         # compute the validation loss at the end of each epoch
