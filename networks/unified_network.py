@@ -3,6 +3,8 @@ from . import resnet, transition
 import torch
 import torch.nn
 
+import time
+
 
 class UnifiedNetwork(torch.nn.Module):
     """
@@ -25,7 +27,9 @@ class UnifiedNetwork(torch.nn.Module):
         :param input_img: the input image of shape (C, H, W), denoting channel, height, and width (excluding batch size)
         :return: the prediction (or the heat-map) on the image
         """
+        # before = time.time()
         resnet_out = self.resnet(input_img)
+        # print(f'In [UnifiedNetwork].[forward]: the forward of resnet took {time.time() - before}')
         if verbose:
             print('In [forward] of UnifiedNetwork: resnet output size:', resnet_out.size())
 

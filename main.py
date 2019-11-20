@@ -24,7 +24,7 @@ def read_params_and_args():
 
     print(f'Running the program with arguments use_comet: {args.use_comet}, '
           f'save_checkpoints: {args.save_checkpoints}, '
-          f'data_limited: {args.data_limited}')
+          f'data_limited: {args.data_limited} \n')
 
     # reading the other params from the JSON file
     with open('params.json', 'r') as f:
@@ -42,6 +42,10 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
     device = train_params['device']
     transition_params = model_params['transition_params']
 
+    # count trainable params
+    num_learnable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f'In [train]: number of learnable params of the model: {num_learnable_params} \n')
+
     # setting variables for early stopping, if wanted by the user
     if es_params is not None:
         prev_val_loss = math.inf  # set to inf so that the first validation loss is less than this
@@ -52,6 +56,21 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
         print(f'{"=" * 40} In epoch: {epoch} {"=" * 40}')
         print(f'Training on {len(train_loader)} batches...')
 
+        # check if resnet output is saved
+        '''
+        if save_resnet_out:
+        if not directory exists
+        create the dir and save the whole (train) tensor
+        
+        else
+        resnet_out = load_tensor  (B, D, S, S) => e.g, (296, 256, 7, 7)
+        
+        i_batch = ?
+        batch = resnet_out[i_batch]  # (D, S, S) => e.g, (256, 7, 7)
+        
+        if the first time:
+            concat tensor
+        '''
         for i_batch, batch in enumerate(train_loader):
             # print(f'Performing on batch: {i_batch}')
             # img_batch, label_batch = img_batch.to(device), label_batch.to(device)
@@ -95,14 +114,16 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
             models_folder = f'models/max_epochs={max_epochs_name}_batch_size={batch_size}_pool_mode={pool_mode}'
             helper.save_model(model, optimizer, models_folder, epoch)
 
+        # compute the validation loss at the end of each epoch
+        val_loss = helper.compute_val_loss(model, val_loader, device)
+
+        # track the validation loss using comet, if wanted by the user
+        if args.use_comet:
+            tracker.track_metric('val_loss', val_loss)
+
         # check validation loss for early stopping
         if es_params is not None:
-            val_loss = helper.compute_val_loss(model, val_loader, device)
             print(f'\nIn [train]: prev_val_loss: {prev_val_loss}, current_val_loss: {val_loss}')
-
-            # track the validation loss using comet, if wanted by the user
-            if args.use_comet:
-                tracker.track_metric('val_loss', val_loss)
 
             # check if the validation loss is improved compared to the previous epochs
             if val_loss > prev_val_loss or prev_val_loss - val_loss < es_params['min_delta']:
@@ -137,9 +158,11 @@ def main():
     max_epochs = params['max_epochs']
     save_model_interval = params['save_model_interval']
 
+    # resnet and transition params
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
     print('In [main]: transition params:', transition_params)
+    print('In [main]: es_params:', params['es_params'])
     # print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
 
     '''# reading image ids and partition them into train, validation, and test sets
