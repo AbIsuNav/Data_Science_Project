@@ -25,7 +25,7 @@ def test_unified_net():
 
 
 def test_load_models():
-    model_name = "models/unified_net_step_9.pt"
+    model_name = "models/unified_net_epoch_25.pt"
     # optimizer_name = 'models/optimizer_step_1.pt'
     with open('params.json', 'r') as f:
         params = json.load(f)
@@ -54,8 +54,8 @@ def test_load_models():
     device = torch.device("cuda:0" if use_cuda else "cpu")
     partition, labels, labels_hot = \
         data_handler.read_and_partition_data(h5_file, val_frac=0.2, test_frac=0.1)
-    train_set = data_handler.Dataset(partition['train'], labels, labels_hot, data_folder, preprocess, device)
-    train_loader = data.DataLoader(dataset=train_set, batch_size=batch_size,
+    data_set = data_handler.Dataset(partition['test'], labels, labels_hot, data_folder, preprocess, device)
+    data_loader = data.DataLoader(dataset=data_set, batch_size=batch_size,
                                    shuffle=shuffle, num_workers=num_workers)
     # creating the validation data loader
     # val_set = data_handler.Dataset(partition['validation'], labels, labels_hot, data_folder, preprocess, device)
@@ -63,7 +63,7 @@ def test_load_models():
     #                             shuffle=False, num_workers=num_workers)
     total_predicted = np.zeros((batch_size, 14))
     total_labels = np.zeros((batch_size, 14))
-    for i_batch, batch in enumerate(train_loader):
+    for i_batch, batch in enumerate(data_loader):
         img_batch = batch['image'].to(device).float()
         label_batch = batch['label'].to(device).float()
         net = helper.load_model(model_name, torch.device('cpu'), transition_params, 'resnet34')
@@ -97,8 +97,8 @@ def test_read_data():
 
 
 def main():
-    # test_load_models()
-    test_read_data()
+    test_load_models()
+    #test_read_data()
 
 
 if __name__ == '__main__':
