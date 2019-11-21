@@ -5,7 +5,7 @@ from sklearn.metrics import roc_curve, auc
 import cv2
 import torch
 
-def plot_ROC(prediction, target, class_names, save=False):
+def plot_ROC(prediction, target, class_names, save=False, folder=""):
     """
     This function plots the ROC graph and prints the AUC values for each class
     :param predicted: a one-hot array [n_points, n_classes] with the predicted classification
@@ -25,9 +25,10 @@ def plot_ROC(prediction, target, class_names, save=False):
 
     # Plot ROC curve
     plt.figure()
+    auc_list = list()
     for i in range(n_classes):
         plt.plot(fpr[i], tpr[i], label=' {} '.format(class_names[i]))
-        print("class {0} with AUC = {1:0.2f}".format(class_names[i], roc_auc[i]))
+        auc_list.append("class {0}, AUC = {1:0.2f}".format(class_names[i], roc_auc[i]))
 
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlim([0.0, 1.0])
@@ -37,8 +38,11 @@ def plot_ROC(prediction, target, class_names, save=False):
     plt.title('ResNet')
     plt.legend(loc="lower right")
     if save:
-        plt.savefig("roc_curve.png")
-    plt.show()
+        plt.savefig(folder+"/roc_curve.png")
+    with open(folder+'/auc.txt', 'w') as f:
+        for item in auc_list:
+            f.write("%s\n" % item)
+    #plt.show()
 
 
 def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='./figures/', compare=False):

@@ -24,8 +24,8 @@ def test_unified_net():
     n_classes = 14
 
 
-def test_load_models():
-    model_name = "models/unified_net_epoch_25.pt"
+def test_load_models(model_name):
+
     # optimizer_name = 'models/optimizer_step_1.pt'
     with open('params.json', 'r') as f:
         params = json.load(f)
@@ -74,7 +74,8 @@ def test_load_models():
         else:
             total_predicted = pred.detach().numpy()
             total_labels = label_batch.detach().numpy()
-    plot_ROC(total_predicted, total_labels, pathologies, save=True)
+    folder_path = model_name.split("/")
+    plot_ROC(total_predicted, total_labels, pathologies, save=True, folder="results/"+folder_path[1])
 
 
 def test_read_data():
@@ -97,7 +98,11 @@ def test_read_data():
 
 
 def main():
-    test_load_models()
+    models_trained =["models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=False/unified_net_epoch_11.pt",
+     "models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=True/unified_net_epoch_8.pt",
+     "models/max_epochs=30_batch_size=256_pool_mode=max_lr=5e-05_no_crop=False/unified_net_epoch_14.pt"]
+    for name in models_trained:
+        test_load_models(name)
     #test_read_data()
 
 
