@@ -31,6 +31,7 @@ class UnifiedNetwork(torch.nn.Module):
         resnet_out = self.resnet(input_img)
         # print(f'In [UnifiedNetwork].[forward]: the forward of resnet took {time.time() - before}')
         if verbose:
+            print('In [forward] of UnifiedNetwork: input batch size:', input_img.size())
             print('In [forward] of UnifiedNetwork: resnet output size:', resnet_out.size())
 
         pred = self.trans_pool_prediction(resnet_out)

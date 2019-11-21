@@ -21,13 +21,18 @@ def read_params_and_args():
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
     parser.add_argument('--lr', type=float, default=0.001)  # setting lr, may be removed after grid search
     parser.add_argument('--max_epochs', type=int, default=30)  # setting the max epoch, may be removed after grid search
+    parser.add_argument('--no_crop', action='store_true')
 
     # we probably do not use this anymore
     parser.add_argument('--data_limited', action='store_true')  # if used, only 100 images are chosen for training
     args = parser.parse_args()
 
-    print(f'Running the program with arguments use_comet: {args.use_comet}, '
+    print(f'In [read_params_and_args]: running the program with arguments '
+          f'use_comet: {args.use_comet}, '
           f'save_checkpoints: {args.save_checkpoints}, '
+          f'lr: {args.lr}, '
+          f'max_epochs: {args.max_epochs}, '
+          f'no_crop: {args.no_crop}, '
           f'data_limited: {args.data_limited} \n')
 
     # reading the other params from the JSON file
@@ -118,7 +123,8 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
             models_folder = f'models/max_epochs={max_epochs_name}_' \
                             f'batch_size={batch_size}_' \
                             f'pool_mode={pool_mode}_' \
-                            f'lr={args.lr}'
+                            f'lr={args.lr}_' \
+                            f'no_crop={args.no_crop}'
             helper.save_model(model, optimizer, models_folder, epoch)
 
         # compute the validation loss at the end of each epoch
@@ -169,6 +175,10 @@ def main():
     # resnet and transition params
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
+
+    # adjusting the S value, if no_crop is used, the 256x256 images will result in 512x8x8 feature maps
+    transition_params['S'] = 8 if args.no_crop else 7
+
     print('In [main]: transition params:', transition_params)
     print('In [main]: es_params:', params['es_params'])
     # print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
@@ -182,7 +192,7 @@ def main():
         data_handler.read_already_partitioned(h5_file)
 
     # not sure why such preprocessing is needed (taken from taken from https://pytorch.org/hub/pytorch_vision_resnet/)
-    preprocess = helper.preprocess_fn()
+    preprocess = helper.preprocess_fn(no_crop=args.no_crop)
 
     # cuda for PyTorch
     use_cuda = torch.cuda.is_available()
