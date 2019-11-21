@@ -24,6 +24,19 @@ def test_unified_net():
     n_classes = 14
 
 
+def test_load_models_2():
+    # model_name = "models/unified_net_step_9.pt"
+    model_1 = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=False/unified_net_epoch_11.pt'
+    model_2 = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=True/unified_net_epoch_8.pt'
+    model_3 = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=5e-05_no_crop=False/unified_net_epoch_14.pt'
+
+    # reading the other params from the JSON file
+    with open('params.json', 'r') as f:
+        params = json.load(f)
+
+    helper.evaluate_model(model_path=model_1, params=params)
+
+
 def test_load_models():
     model_name = "models/unified_net_step_9.pt"
     # optimizer_name = 'models/optimizer_step_1.pt'
@@ -97,8 +110,9 @@ def test_read_data():
 
 
 def main():
+    # test_read_data()
     # test_load_models()
-    test_read_data()
+    test_load_models_2()
 
 
 if __name__ == '__main__':

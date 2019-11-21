@@ -272,4 +272,9 @@ def create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, 
     val_set = Dataset(partition['validation'], labels, labels_hot, data_folder, preprocess, device)
     val_loader = data.DataLoader(dataset=val_set, batch_size=batch_size,
                                  shuffle=False, num_workers=num_workers)
-    return train_loader, val_loader
+
+    # creating the validation data loader
+    test_set = Dataset(partition['test'], labels, labels_hot, data_folder, preprocess, device)
+    test_loader = data.DataLoader(dataset=test_set, batch_size=batch_size,
+                                  shuffle=False, num_workers=num_workers)
+    return train_loader, val_loader, test_loader

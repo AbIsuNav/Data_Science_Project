@@ -39,6 +39,10 @@ def read_params_and_args():
     with open('params.json', 'r') as f:
         params = json.load(f)
 
+    # adjusting the S value, if no_crop is used, the 256x256 images will result in 512x8x8 feature maps
+    # transition_params['S'] = 8 if args.no_crop else 7
+    params['transition_params']['S'] = 8 if args.no_crop else 7
+
     return args, params
 
 
@@ -176,9 +180,6 @@ def main():
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
 
-    # adjusting the S value, if no_crop is used, the 256x256 images will result in 512x8x8 feature maps
-    transition_params['S'] = 8 if args.no_crop else 7
-
     print('In [main]: transition params:', transition_params)
     print('In [main]: es_params:', params['es_params'])
     # print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
@@ -201,7 +202,7 @@ def main():
 
     # creating the train and validation data loaders
     loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
-    train_loader, val_loader = \
+    train_loader, val_loader, _ = \
         data_handler.create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params)
 
     # the model
