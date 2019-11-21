@@ -103,3 +103,9 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+"""
+Test notes: if using early stopping (once it is fixed), the following could be used in the json file:
+"es_params": {"patience": 5, "min_delta": 1e-3}
+"""

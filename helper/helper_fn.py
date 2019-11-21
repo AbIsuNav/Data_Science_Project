@@ -86,12 +86,19 @@ def load_model(model_name, device, transition_params=None, which_resnet=None, un
         raise ValueError('In [load_model]: Model name not supported for loading!')
 
 
-def preprocess_fn():
+def preprocess_fn(no_crop=False):
     # image preprocessing functions (not sure why, taken from https://pytorch.org/hub/pytorch_vision_resnet/)
-    preprocess = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+    if no_crop:  # does not crop the image into 224x224 size
+        preprocess = transforms.Compose([
+            transforms.Resize(256),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+    else:  # crops the image in the center and changes the size to 224x224
+        preprocess = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
     return preprocess
