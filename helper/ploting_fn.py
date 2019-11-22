@@ -5,6 +5,71 @@ from sklearn.metrics import roc_curve, auc
 import cv2
 import torch
 
+from . import helper_fn
+import data_handler
+
+
+def evaluate_model(model_path, params):
+    no_crop = True if 'no_crop' in model_path else False
+
+    # adjust S, for models with no_crop in their names, S is 8 because the training and test images were of size 256x256
+    transition_params = params['transition_params']
+    transition_params['S'] = 8 if no_crop else 7
+
+    # for the very first saved models, include_1x1_conv was set to False and needs to be adjusted
+    # if model_path == 'models/unified_net_step_9.pt' or model_path == 'models/unified_net_epoch_25.pt':
+    #    transition_params['include_1x1_conv'] = False
+
+    print(f'In [evaluate_model]: \n'
+          f'model: {model_path} \n'
+          f'transition_params: {transition_params} \n')
+
+    # data files
+    data_folder = params['data_folder']
+    h5_file = params['h5_file']
+    pathologies = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis',
+                   'Hernia',
+                   'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+
+    # training params
+    batch_size = params['batch_size']
+    shuffle = params['shuffle']
+    num_workers = params['num_workers']
+
+    preprocess = helper_fn.preprocess_fn(no_crop)  # the function needs to know if it should crop the images
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+
+    # read the data and the labels
+    partition, labels, labels_hot = \
+        data_handler.read_already_partitioned(h5_file)
+
+    loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
+    train_loader, _, test_loader = \
+        data_handler.create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params)
+
+    print(f'In [evaluate_model]: loaded train and test loaders '
+          f'with number of batches {len(train_loader)} and {len(test_loader)}')
+
+    # copied exactly from Abgeiba's code
+    total_predicted = np.zeros((batch_size, 14))
+    total_labels = np.zeros((batch_size, 14))
+    for i_batch, batch in enumerate(train_loader):
+        img_batch = batch['image'].to(device).float()
+        label_batch = batch['label'].to(device).float()
+        net = helper_fn.load_model(model_path, torch.device('cpu'), transition_params, 'resnet34')
+        pred = net(img_batch, verbose=False)
+        if i_batch > 0:
+            total_predicted = np.append(total_predicted, pred.detach().numpy(), axis=0)
+            total_labels = np.append(total_labels, label_batch.detach().numpy(), axis=0)
+        else:
+            total_predicted = pred.detach().numpy()
+            total_labels = label_batch.detach().numpy()
+    plot_ROC(total_predicted, total_labels, pathologies, save=True)
+    folder_path = model_path.split("/")
+    plot_ROC(total_predicted, total_labels, pathologies, save=True, folder="results/"+folder_path[1])
+
+
 def plot_ROC(prediction, target, class_names, save=False, folder=""):
     """
     This function plots the ROC graph and prints the AUC values for each class

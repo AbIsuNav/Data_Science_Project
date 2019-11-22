@@ -70,10 +70,10 @@ def load_model(model_name, device, transition_params=None, which_resnet=None, un
     # loading a model
     if 'unified_net' in model_name:
         unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
-        #if device == "cpu":
-        unified_net.load_state_dict(torch.load(model_name, map_location=torch.device('cpu')))
-        #else:
-        #    unified_net.load_state_dict(torch.load(model_name))
+        # if device == "cpu":
+        #    unified_net.load_state_dict(torch.load(model_name, map_location=torch.device('cpu')))
+        # else:
+        unified_net.load_state_dict(torch.load(model_name, map_location=device))
         unified_net.eval()  # putting in evaluation mode (for batch normalization, dropout and so on, if it has any)
         # do I need to set all param requires_grad to False?
         return unified_net
