@@ -54,7 +54,7 @@ def evaluate_model(model_path, params):
     # copied exactly from Abgeiba's code
     total_predicted = np.zeros((batch_size, 14))
     total_labels = np.zeros((batch_size, 14))
-    for i_batch, batch in enumerate(train_loader):
+    for i_batch, batch in enumerate(test_loader):
         img_batch = batch['image'].to(device).float()
         label_batch = batch['label'].to(device).float()
         net = helper_fn.load_model(model_path, torch.device('cpu'), transition_params, 'resnet34')
