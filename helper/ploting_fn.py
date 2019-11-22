@@ -65,7 +65,6 @@ def evaluate_model(model_path, params):
         else:
             total_predicted = pred.detach().numpy()
             total_labels = label_batch.detach().numpy()
-    plot_ROC(total_predicted, total_labels, pathologies, save=True)
     folder_path = model_path.split("/")
     plot_ROC(total_predicted, total_labels, pathologies, save=True, folder="results/"+folder_path[1])
 
