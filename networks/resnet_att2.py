@@ -23,7 +23,7 @@ class ResNet_A2(nn.Module):
         """
         super().__init__()
         self.inplanes = 14
-        self.resnet = resnet.load_resnet()
+        self.resnet = resnet.load_resnet(train_params=True)
         self.pool = nn.AvgPool2d(kernel_size=7, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.resize = nn.Upsample(scale_factor=7)

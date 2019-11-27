@@ -239,7 +239,7 @@ def load_model():
     print(torch.nn.functional.softmax(output[0], dim=0))
 
 
-def load_resnet(verbose=False):
+def load_resnet(verbose=False, train_params=False):
     """
     Example from https://pytorch.org/hub/pytorch_vision_resnet/
     it is chosen as default to load the ResNet34 model.
@@ -254,7 +254,7 @@ def load_resnet(verbose=False):
 
     # freezing the parameters
     for param in resnet_model.parameters():
-        param.requires_grad = False
+        param.requires_grad = train_params
 
     if verbose:
         print('ResNet summary before removing the last two layers')
