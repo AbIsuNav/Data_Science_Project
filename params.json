@@ -6,7 +6,7 @@
   "save_model_interval": 1,
 
   "es_params": null,
-
+  "network": "attention2",
   "which_resnet": "resnet34",
 
   "transition_params": {

@@ -8,7 +8,7 @@ import json
 import argparse
 import os
 import math
-
+from networks import resnet_att2
 import torch
 from torch.backends import cudnn
 from torch.utils import data
@@ -175,7 +175,7 @@ def main():
     # max_epochs = params['max_epochs']
     max_epochs = args.max_epochs
     save_model_interval = params['save_model_interval']
-
+    network_type = params["network"]
     # resnet and transition params
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
@@ -206,7 +206,10 @@ def main():
         data_handler.create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params)
 
     # the model
-    unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
+    if network_type == "attention2":
+        unified_net = resnet_att2.ResNet_A2(which_resnet).to(device)
+    else:
+        unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 
     # Adam optimizer with default parameters
     lr = args.lr

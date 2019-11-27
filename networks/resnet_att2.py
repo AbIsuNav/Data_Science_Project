@@ -1,4 +1,4 @@
-import resnet
+from . import resnet
 import torch
 from torchvision import transforms
 from PIL import Image
@@ -16,7 +16,7 @@ class ResNet_A2(nn.Module):
     TransitionLayer which contains the pooling and prediction layers in itself.
     """
 
-    def __init__(self, transition_params, which_resnet):
+    def __init__(self, which_resnet):
         """
         :param transition_params: a dictionary containing the parameters needed to initialize a transition layer.
         :param which_resnet: a string such as 'resnet34' indicating the resnet to be loaded.
@@ -72,5 +72,5 @@ if __name__ == "__main__":
     }
     test_batch = torch.rand((10, 3, 224, 224))
 
-    model = ResNet_A2(param_set,"resnet34")
+    model = ResNet_A2("resnet34")
     model(test_batch)
