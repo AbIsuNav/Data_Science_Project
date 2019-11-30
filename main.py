@@ -216,7 +216,6 @@ def main():
 
     # Adam optimizer with default parameters
     lr = args.lr
-    momentum = args.momentum
     decay = args.wdecay
 
     optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr, weight_decay=decay)
