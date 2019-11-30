@@ -8,10 +8,10 @@ import json
 import argparse
 import os
 import math
+import time
 
 import torch
 from torch.backends import cudnn
-from torch.utils import data
 
 
 def read_params_and_args():
@@ -19,34 +19,25 @@ def read_params_and_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_comet', action='store_true')  # if used, the experiment would be tracked by comet
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
+
     parser.add_argument('--lr', type=float, default=0.001)  # setting lr, may be removed after grid search
     parser.add_argument('--max_epochs', type=int, default=30)  # setting the max epoch, may be removed after grid search
-    parser.add_argument('--no_crop', action='store_true')
-
-    # we probably do not use this anymore
-    parser.add_argument('--data_limited', action='store_true')  # if used, only 100 images are chosen for training
     args = parser.parse_args()
 
     print(f'In [read_params_and_args]: running the program with arguments '
           f'use_comet: {args.use_comet}, '
           f'save_checkpoints: {args.save_checkpoints}, '
           f'lr: {args.lr}, '
-          f'max_epochs: {args.max_epochs}, '
-          f'no_crop: {args.no_crop}, '
-          f'data_limited: {args.data_limited} \n')
+          f'max_epochs: {args.max_epochs} \n')
 
     # reading the other params from the JSON file
     with open('params.json', 'r') as f:
         params = json.load(f)
 
-    # adjusting the S value, if no_crop is used, the 256x256 images will result in 512x8x8 feature maps
-    # transition_params['S'] = 8 if args.no_crop else 7
-    params['transition_params']['S'] = 8 if args.no_crop else 7
-
     return args, params
 
 
-def train(model, optimizer, model_params, train_params, args, es_params, tracker=None):
+def train(model, optimizer, model_params, train_params, args, early_stopping=True, tracker=None):
     max_epochs = train_params['max_epochs']
     batch_size = train_params['batch_size']
     save_model_interval = train_params['save_model_interval']
@@ -59,45 +50,48 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
     num_learnable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f'In [train]: number of learnable params of the model: {num_learnable_params}, max_epochs = {max_epochs} \n')
 
-    # setting variables for early stopping, if wanted by the user
-    if es_params is not None:
-        prev_val_loss = math.inf  # set to inf so that the first validation loss is less than this
-        no_improvements = 0  # the number consecutive epochs through which validation loss has not improved
+    # setting up the name of the folder in which the model is going to be saved
+    pool_mode = transition_params['pool_mode']  # extracted for saving the models
 
+    # also use the value of r for saving the model in case the pool mode is 'lse'
+    if pool_mode == 'lse':
+        r = transition_params['r']
+        pool_mode += f'_r={r}'
+
+    # determining this part of the models folder based on whether we are using early stopping
+    mins_since_epoch = int(time.time() / 60)  # used in naming the model folder to be unique from other runs
+    models_folder = f'models/max_epochs={max_epochs}_' \
+                    f'batch_size={batch_size}_' \
+                    f'pool_mode={pool_mode}_' \
+                    f'lr={args.lr}_' \
+                    f'no_crop={True}_' \
+                    f'es={early_stopping}_{mins_since_epoch}'
+
+    # set up early stopping
+    if early_stopping:
+        best_val_loss = math.inf  # set to inf so that the first validation loss is less than this
+        no_improvements = 0   # the number consecutive epochs through which validation loss has not improved
+        patience = 3
+        min_delta = .001
+
+    # training
     epoch = 0
     while epoch < max_epochs:
         print(f'{"=" * 40} In epoch: {epoch} {"=" * 40}')
         print(f'Training on {len(train_loader)} batches...')
 
-        # check if resnet output is saved
-        '''
-        if save_resnet_out:
-        if not directory exists
-        create the dir and save the whole (train) tensor
-        
-        else
-        resnet_out = load_tensor  (B, D, S, S) => e.g, (296, 256, 7, 7)
-        
-        i_batch = ?
-        batch = resnet_out[i_batch]  # (D, S, S) => e.g, (256, 7, 7)
-        
-        if the first time:
-            concat tensor
-        '''
         for i_batch, batch in enumerate(train_loader):
-            # print(f'Performing on batch: {i_batch}')
-            # img_batch, label_batch = img_batch.to(device), label_batch.to(device)
+            # converting the labels batch  to from Long tensor to Float tensor (otherwise won't work on GPU)
             img_batch = batch['image'].to(device).float()
             label_batch = batch['label'].to(device).float()
-            # converted the labels batch  to from Long tensor to Float tensor (otherwise won't work on GPU)
 
             # making gradients zero in each optimization step
             optimizer.zero_grad()
 
             # getting the network prediction and computing the loss
             pred = model(img_batch, verbose=False)
-
             train_loss = networks.WCEL(pred, label_batch)
+
             if i_batch % 50 == 0:
                 print(f'Batch: {i_batch}, train loss: {round(train_loss.item(), 3)}')
 
@@ -111,24 +105,6 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
 
         # save the model every several steps if wanted by the user
         if epoch % save_model_interval == 0 and args.save_checkpoints:
-            pool_mode = transition_params['pool_mode']  # extracted for saving the models
-
-            # also use the value of r for saving the model in case the pool mode is 'lse'
-            if pool_mode == 'lse':
-                r = transition_params['r']
-                pool_mode += f'_r={r}'
-
-            # determining this part of the models folder based on whether we are using early stopping
-            if es_params is None:
-                max_epochs_name = max_epochs
-            else:
-                max_epochs_name = f'{max_epochs}_es_patience={es_params["patience"]}_min_delta={es_params["min_delta"]}'
-
-            models_folder = f'models/max_epochs={max_epochs_name}_' \
-                            f'batch_size={batch_size}_' \
-                            f'pool_mode={pool_mode}_' \
-                            f'lr={args.lr}_' \
-                            f'no_crop={args.no_crop}'
             helper.save_model(model, optimizer, models_folder, epoch)
 
         # compute the validation loss at the end of each epoch
@@ -139,23 +115,22 @@ def train(model, optimizer, model_params, train_params, args, es_params, tracker
             tracker.track_metric('val_loss', val_loss)
 
         # check validation loss for early stopping
-        if es_params is not None:
-            print(f'\nIn [train]: prev_val_loss: {prev_val_loss}, current_val_loss: {val_loss}')
+        if early_stopping:
+            print(f'\nIn [train]: prev_val_loss: {best_val_loss}, current_val_loss: {val_loss}')
 
             # check if the validation loss is improved compared to the previous epochs
-            if val_loss > prev_val_loss or prev_val_loss - val_loss < es_params['min_delta']:
+            if val_loss > best_val_loss or best_val_loss - val_loss < min_delta:
                 no_improvements += 1
                 print(f'In [train]: no_improvements incremented to {no_improvements} \n\n')
 
-            else:  # if it is improved, reset no_improvements
+            else:  # it is improved, reset no_improvements to 0
                 no_improvements = 0
+                # update the validation loss for the next epoch
+                best_val_loss = val_loss
                 print(f'In [train]: no_improvements set to 0 \n\n')
 
-            # update the validation loss for the next epoch
-            prev_val_loss = val_loss
-
             # terminate training after several epochs without validation improvement
-            if no_improvements > es_params['patience']:
+            if no_improvements >= patience:
                 print(f'In [train]: no_improvements = {no_improvements}, training terminated...')
                 break
         epoch += 1
@@ -179,21 +154,14 @@ def main():
     # resnet and transition params
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
-
     print('In [main]: transition params:', transition_params)
-    print('In [main]: es_params:', params['es_params'])
-    # print('Note: "r" will simply be ignored if the pool mode is "max" or "avg"', '\n')
-
-    '''# reading image ids and partition them into train, validation, and test sets
-    partition, labels, labels_hot = \
-        data_handler.read_and_partition_data(h5_file, limited=args.data_limited, val_frac=0.2, test_frac=0.1)'''
 
     # read the data and the labels
     partition, labels, labels_hot = \
         data_handler.read_already_partitioned(h5_file)
 
     # not sure why such preprocessing is needed (taken from taken from https://pytorch.org/hub/pytorch_vision_resnet/)
-    preprocess = helper.preprocess_fn(no_crop=args.no_crop)
+    preprocess = helper.preprocess_fn(no_crop=True)  # does not crop the images
 
     # cuda for PyTorch
     use_cuda = torch.cuda.is_available()
@@ -222,18 +190,43 @@ def main():
                     'val_loader': val_loader,
                     'device': device}
 
-    # params for early stopping, set to None if not interested in early stopping
-    es_params = params['es_params']
-
     # initialize our comet experiment to track the run, if wanted by the user
     if args.use_comet:
         tracker = helper.init_comet(params)
         print("In [main]: comet experiment initialized...")
-        train(unified_net, optimizer, model_params, train_params, args, es_params, tracker)
+        train(unified_net, optimizer, model_params, train_params, args, early_stopping=True, tracker=tracker)
 
     else:
-        train(unified_net, optimizer, model_params, train_params, args, es_params)
+        train(unified_net, optimizer, model_params, train_params, args, early_stopping=True)
+
+
+def prepare_data_if_not_available():
+    data_path = 'data/data_big_1024x1024'
+    download_path = 'data/data_big_original/archives'
+    extracted_path = 'data/data_big_original/extracted'
+
+    # 'images' would automatically be appended to 'extracted_path' when extracting the tar files, so we need to add it
+    # images_path = f'{extracted_path}/images'
+
+    # if not os.path.isdir(data_path):
+    # if not os.path.exists(download_path):  # download data if not already downloaded (naive checking)
+    print(f'In [prepare_data_if_not_available]: downloading data at: "{download_path}"...')
+    data_handler.download_data(download_path)
+
+    # if not os.path.exists(extracted_path):  # extract archive path if not already extracted (naive checking)
+    # print(f'In [prepare_data_if_not_available]: extracting the data to: "{extracted_path}..."\n')
+    # data_handler.extract_data(archive_path=download_path, extract_path=extracted_path)
+
+    print(f'In [prepare_data_if_not_available]: extracting the data to: "{data_path}..."\n')
+    data_handler.extract_data(archive_path=download_path, extract_path=data_path)
+
+    '''# down-sampling using the 'images_path'
+    print(f'In [prepare_data_if_not_available]: down-sampling the data to: "{data_path}"...\n')
+    data_handler.down_sample(images_path, data_path)'''
+    # else:
+    #    print(f'In [prepare_data_if_not_available]: data path "{data_path}" already exists.')
 
 
 if __name__ == '__main__':
+    # prepare_data_if_not_available()
     main()

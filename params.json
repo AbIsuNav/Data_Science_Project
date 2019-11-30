@@ -1,18 +1,16 @@
 {
   "max_epochs": 30,
-  "batch_size": 256,
+  "batch_size": 128,
   "shuffle": true,
   "num_workers": 4,
   "save_model_interval": 1,
-
-  "es_params": null,
 
   "which_resnet": "resnet34",
 
   "transition_params": {
     "include_1x1_conv": true,
     "input_features": 512,
-    "S": 7,
+    "S": 8,
     "D": 512,
     "n_classes": 14,
 

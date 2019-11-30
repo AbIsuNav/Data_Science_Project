@@ -57,8 +57,13 @@ def test_read_data():
         print(type(k), type(v))'''
 
 
+def test_download_data():
+    data_handler.download_data()
+
+
 def main():
-    test_load_models_2()
+    # test_load_models_2()
+    test_download_data()
 
 
 if __name__ == '__main__':
