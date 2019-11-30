@@ -11,6 +11,7 @@ import math
 from networks import resnet_att2
 import torch
 from torch.backends import cudnn
+from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils import data
 
 
@@ -19,7 +20,8 @@ def read_params_and_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_comet', action='store_true')  # if used, the experiment would be tracked by comet
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
-    parser.add_argument('--lr', type=float, default=0.001)  # setting lr, may be removed after grid search
+    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--wdecay', type=float, default=0.0) # setting lr, may be removed after grid search
     parser.add_argument('--max_epochs', type=int, default=30)  # setting the max epoch, may be removed after grid search
     parser.add_argument('--no_crop', action='store_true')
 
@@ -175,6 +177,7 @@ def main():
     # max_epochs = params['max_epochs']
     max_epochs = args.max_epochs
     save_model_interval = params['save_model_interval']
+    low_lr = params['lower_lr']
     network_type = params["network"]
     # resnet and transition params
     which_resnet = params['which_resnet']
@@ -213,7 +216,13 @@ def main():
 
     # Adam optimizer with default parameters
     lr = args.lr
-    optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr)
+    momentum = args.momentum
+    decay = args.wdecay
+
+    optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr, weight_decay=decay)
+    if low_lr:
+        milestones = list(range(max_epochs))
+        scheduler = MultiStepLR(optimizer, milestones=milestones[1:])
     print(f'In [main]: created the Adam optimizer with learning rate: {lr}')
 
     # setting the training params and model params used during training

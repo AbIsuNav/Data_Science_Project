@@ -4,10 +4,12 @@
   "shuffle": true,
   "num_workers": 4,
   "save_model_interval": 1,
+  "params": 0.9,
 
   "es_params": null,
   "network": "attention2",
   "which_resnet": "resnet34",
+  "lower_lr": true,
 
   "transition_params": {
     "include_1x1_conv": true,
