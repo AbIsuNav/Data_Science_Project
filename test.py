@@ -62,8 +62,8 @@ def test_download_data():
 
 
 def main():
-    # test_load_models_2()
-    test_download_data()
+    test_load_models_2()
+    # test_download_data()
 
 
 if __name__ == '__main__':

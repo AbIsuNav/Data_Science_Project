@@ -10,7 +10,8 @@ import data_handler
 
 
 def evaluate_model(model_path, params):
-    no_crop = True if 'no_crop' in model_path else False
+    no_crop = True if 'no_crop=True' in model_path else False
+    print(f'In [evaluate_model]: evaluating model: "{model_path}", no_crop: {no_crop} \n')
 
     # adjust S, for models with no_crop in their names, S is 8 because the training and test images were of size 256x256
     transition_params = params['transition_params']
