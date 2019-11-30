@@ -17,7 +17,7 @@ class UnifiedNetwork(torch.nn.Module):
         :param which_resnet: a string such as 'resnet34' indicating the resnet to be loaded.
         """
         super().__init__()
-        self.resnet = resnet.load_resnet(freeze=False)  # set freeze to False for training the resnet as well
+        self.resnet = resnet.load_resnet(train_params=True)  # train the resnet as well
         self.trans_pool_prediction = transition.TransitionLayer(**transition_params)
 
     def forward(self, input_img, verbose=False):

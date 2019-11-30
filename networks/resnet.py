@@ -239,13 +239,13 @@ def load_model():
     print(torch.nn.functional.softmax(output[0], dim=0))
 
 
-def load_resnet(freeze=True, verbose=False):
+def load_resnet(train_params=False, verbose=False):
     """
     Example from https://pytorch.org/hub/pytorch_vision_resnet/
     it is chosen as default to load the ResNet34 model.
 
     :param verbose: if True, the function prints model summaries before and after removing the two last layers.
-    :param freeze: if True, the parameters of the resnet will be frozen and do not contribute to gradient updates.
+    :param train_params: if False, the parameters of the resnet will be frozen and do not contribute to gradient updates.
     :return: the pre-trained resnet34 model with the two last layers (pooling and fully connected) removed.
     Output shape is [512 x 7 x 7] excluding the batch size.
     """
@@ -253,7 +253,8 @@ def load_resnet(freeze=True, verbose=False):
     # model.eval()  # model in evaluation mode (e.g. change behavior of batch normalization)
     resnet_model = models.resnet34(pretrained=True)
 
-    if freeze:
+    # freeze the resnet
+    if not train_params:
         # put the model in evaluation mode (for batch normalization etc.)
         resnet_model.eval()
 

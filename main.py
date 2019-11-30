@@ -10,8 +10,10 @@ import os
 import math
 import time
 
+from networks import resnet_att2
 import torch
 from torch.backends import cudnn
+from torch.optim.lr_scheduler import MultiStepLR
 
 
 def read_params_and_args():
@@ -21,6 +23,7 @@ def read_params_and_args():
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
 
     parser.add_argument('--lr', type=float, default=0.001)  # setting lr, may be removed after grid search
+    parser.add_argument('--wdecay', type=float, default=0.0)
     parser.add_argument('--max_epochs', type=int, default=30)  # setting the max epoch, may be removed after grid search
     args = parser.parse_args()
 
@@ -150,7 +153,8 @@ def main():
     # max_epochs = params['max_epochs']
     max_epochs = args.max_epochs
     save_model_interval = params['save_model_interval']
-
+    low_lr = params['lower_lr']
+    network_type = params["network"]
     # resnet and transition params
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
@@ -174,11 +178,19 @@ def main():
         data_handler.create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params)
 
     # the model
-    unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
+    if network_type == "attention2":
+        unified_net = resnet_att2.ResNet_A2(which_resnet).to(device)
+    else:
+        unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 
     # Adam optimizer with default parameters
     lr = args.lr
-    optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr)
+    decay = args.wdecay
+
+    optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr, weight_decay=decay)
+    if low_lr:
+        milestones = list(range(max_epochs))
+        scheduler = MultiStepLR(optimizer, milestones=milestones[1:])
     print(f'In [main]: created the Adam optimizer with learning rate: {lr}')
 
     # setting the training params and model params used during training
