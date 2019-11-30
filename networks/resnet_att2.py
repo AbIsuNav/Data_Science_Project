@@ -31,7 +31,7 @@ class ResNet_A2(nn.Module):
                                bias=False)
 
 
-    def forward(self, input_img, verbose=False):
+    def forward(self, input_img, get_heatmap=False, verbose=False):
         """
         The forward pass of the network, plugging in the output of the resnet to the transition layer
         :param verbose:
@@ -46,6 +46,8 @@ class ResNet_A2(nn.Module):
         x = self.conv1(x)
         # end attention
         x = self.avgpool(x)
+        if get_heatmap:
+            return x
         x = torch.flatten(x, 1)
         # print(f'In [UnifiedNetwork].[forward]: the forward of resnet took {time.time() - before}')
         if verbose:
