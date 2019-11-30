@@ -25,6 +25,8 @@ def read_params_and_args():
     parser.add_argument('--lr', type=float, default=0.001)  # setting lr, may be removed after grid search
     parser.add_argument('--wdecay', type=float, default=0.0)
     parser.add_argument('--max_epochs', type=int, default=30)  # setting the max epoch, may be removed after grid search
+
+    parser.add_argument('--net_type', type=str, default='unified_net')
     args = parser.parse_args()
 
     print(f'In [read_params_and_args]: running the program with arguments '
@@ -154,7 +156,8 @@ def main():
     max_epochs = args.max_epochs
     save_model_interval = params['save_model_interval']
     low_lr = params['lower_lr']
-    network_type = params["network"]
+    # network_type = params["network"]
+    network_type = args.net_type
     # resnet and transition params
     which_resnet = params['which_resnet']
     transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
