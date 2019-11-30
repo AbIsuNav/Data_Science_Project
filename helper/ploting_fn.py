@@ -109,7 +109,7 @@ def plot_ROC(prediction, target, class_names, save=False, folder=""):
     #plt.show()
 
 
-def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='./figures/', compare=False):
+def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True):
     """
     Plots class activation maps for a batch of images.
     :param image_batch: Batch of images, dimensions (Batch size, 3, H, W)
@@ -126,16 +126,21 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='./figure
     out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
     for i in range(len(out)):
         for c in range(out[0].size(0)):
-            heatmap = out[i][c].detach().numpy()
-            result = cv2.resize(heatmap, resize_dim)
+            heatmap = np.uint8(out[i][c].cpu().numpy() * 255)
+            heatmap = cv2.applyColorMap(cv2.resize(heatmap, resize_dim), cv2.COLORMAP_JET)
             # merge heatmap and image(make them transparent) on a same image
             if compare:
-                result = result * 0.3 + image_batch[i] * 0.5
-            #plt.pcolormesh(cv2.resize(img, resize_dim))
-            plt.imshow(result)
+                mean = torch.tensor([0.485, 0.456, 0.406]).unsqueeze(-1).unsqueeze(-1)
+                std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
+                img = (image_batch[i].cpu() + mean)*std
+                img = (img + 1)*255/2
+                img = np.uint8(img.permute(1, 2, 0).numpy())
+                heatmap = np.uint8(heatmap * 0.3 + img * 0.5)
+            plt.imshow(heatmap)
             plt.title('Activation map, sample {}, class {}'.format(i, c))
             plt.savefig(f'{save_path}CAM_sample_{i}_class_{c}.png')
             #plt.show()
+            #cv2.imwrite(f'{save_path}CAM_sample_{i}_class_{c}.png', heatmap)
 
 
 

@@ -11,18 +11,24 @@ class TransitionLayer(nn.Module):
     input: output of last convolutional layer in ResNet (with a size of batch_size x D x S x S)
     output: weighted spatial activation maps for each disease class (with a size of batch_size x S × S × C)
     """
-    def __init__(self, include_1x1_conv, pool_mode, input_features, S, D, n_classes, r=0.1):
+    def __init__(self, include_1x1_conv, pool_mode, input_features, S, D, n_classes, r=0.1, upsample_conv=False):
         super(TransitionLayer, self).__init__()
         self.include_1x1_conv = include_1x1_conv
         self.pool_mode = pool_mode
         self.S = S
         self.r = r
+        self.upsample_conv = upsample_conv
 
         # this 1x1 does not change either the depth or the spatial dimension of the input
         if include_1x1_conv:
             self.conv1 = nn.Conv2d(input_features, D, kernel_size=1)
             # self.conv1 = nn.Conv2d(input_features, D, kernel_size=3, stride=1, padding=1, bias=False)
             # self.bn = nn.BatchNorm2d(D)
+        elif upsample_conv:
+            self.conv1 = nn.ConvTranspose2d(input_features, D, 4, 2, 1, bias=False)
+            self.bn1 = nn.BatchNorm2d(D)
+            self.conv2 = nn.ConvTranspose2d(D, D, 4, 2, 1, bias=False)
+            self.bn2 = nn.BatchNorm2d(D)
 
         # After fc dim=(1, n_classes)
         self.fc = nn.Linear(D, n_classes)
@@ -45,11 +51,19 @@ class TransitionLayer(nn.Module):
         x = self.conv1(x)
         x = self.bn(x)
         '''
+        if self.include_1x1_conv:
+            x = self.conv1(x)
+        elif self.upsample_conv:
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = nn.ReLU(x)
+            x = self.conv2(x)
+            x = self.bn2(x)
+            x = nn.ReLU(x)
+
         if not CAM:  # classification
             # After global pool dim=
             # x = self.global_pool(x, app=True)
-            if self.include_1x1_conv:
-                x = self.conv1(x)
 
             x = self.global_pool(x)
             if verbose:
