@@ -27,9 +27,8 @@ class ResNet_A2(nn.Module):
         self.pool = nn.AvgPool2d(kernel_size=7, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.resize = nn.Upsample(scale_factor=7)
-        self.conv1 = nn.Conv2d(1024, self.inplanes, kernel_size=7, stride=1, padding=3,
-                               bias=False)
-
+        self.conv1 = nn.Conv2d(1024, self.inplanes, kernel_size=1)
+        self.sig = nn.Sigmoid()
 
     def forward(self, input_img, get_heatmap=False, verbose=False):
         """
@@ -46,16 +45,17 @@ class ResNet_A2(nn.Module):
         x = self.conv1(x)
         # end attention
         x = self.avgpool(x)
+        if verbose:
+            print('In [forward] of Attention2_Network: input batch size:', input_img.size())
+            print('Heatmap size: ', x.size())
         if get_heatmap:
             return x
         x = torch.flatten(x, 1)
+        x = self.sig(x)
         # print(f'In [UnifiedNetwork].[forward]: the forward of resnet took {time.time() - before}')
         if verbose:
-            print('In [forward] of UnifiedNetwork: input batch size:', input_img.size())
-            print('In [forward] of UnifiedNetwork: resnet output size:', x1.size())
-
-        if verbose:
-            print('In [forward] of UnifiedNetwork: trans_pool_prediction output size:', x.size())
+            print('In [forward] of Attention2_Network: resnet output size:', x1.size())
+            print('In [forward] of Attention2_Network: prediction output size:', x.size())
             # print('In [forward] of UnifiedNetwork: prediction for the first 5 images:')
             # print(pred[:5])
         return x

@@ -239,22 +239,28 @@ def load_model():
     print(torch.nn.functional.softmax(output[0], dim=0))
 
 
-def load_resnet(verbose=False, train_params=False):
+def load_resnet(train_params=False, verbose=False):
     """
     Example from https://pytorch.org/hub/pytorch_vision_resnet/
     it is chosen as default to load the ResNet34 model.
+
     :param verbose: if True, the function prints model summaries before and after removing the two last layers.
+    :param train_params: if False, the parameters of the resnet will be frozen and do not contribute to gradient updates.
     :return: the pre-trained resnet34 model with the two last layers (pooling and fully connected) removed.
     Output shape is [512 x 7 x 7] excluding the batch size.
     """
     # model = torch.hub.load('pytorch/vision', which_resnet, pretrained=True)
     # model.eval()  # model in evaluation mode (e.g. change behavior of batch normalization)
     resnet_model = models.resnet34(pretrained=True)
-    resnet_model.eval()  # put the model in evaluation mode (for batch normalization etc.)
 
-    # freezing the parameters
-    for param in resnet_model.parameters():
-        param.requires_grad = train_params
+    # freeze the resnet
+    if not train_params:
+        # put the model in evaluation mode (for batch normalization etc.)
+        resnet_model.eval()
+
+        # freezing the parameters
+        for param in resnet_model.parameters():
+            param.requires_grad = False
 
     if verbose:
         print('ResNet summary before removing the last two layers')
@@ -267,12 +273,14 @@ def load_resnet(verbose=False, train_params=False):
     if verbose:
         print('ResNet summary before after the last two layers')
         # print(resnet_model)
-        summary(resnet_model, input_size=(3, 224, 224))
+        # summary(resnet_model, input_size=(3, 224, 224))
+        # summary(resnet_model, input_size=(3, 512, 512))
+        summary(resnet_model, input_size=(3, 1024, 1024))
 
     return resnet_model
 
 
 if __name__ == "__main__":
     # load_model()
-    resnet = load_resnet()
-    print(resnet)
+    resnet = load_resnet(verbose=True)
+    # print(resnet)

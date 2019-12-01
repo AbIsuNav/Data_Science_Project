@@ -3,15 +3,16 @@ import matplotlib.pyplot as plt
 from matplotlib import patches
 from sklearn.metrics import roc_curve, auc
 import cv2
-import os
 import torch
+import os
 
 from . import helper_fn
 import data_handler
 
 
 def evaluate_model(model_path, params):
-    no_crop = True if 'no_crop' in model_path else False
+    no_crop = True if 'no_crop=True' in model_path else False
+    print(f'In [evaluate_model]: evaluating model: "{model_path}", no_crop: {no_crop} \n')
 
     # adjust S, for models with no_crop in their names, S is 8 because the training and test images were of size 256x256
     transition_params = params['transition_params']
@@ -55,22 +56,33 @@ def evaluate_model(model_path, params):
     # copied exactly from Abgeiba's code
     total_predicted = np.zeros((batch_size, 14))
     total_labels = np.zeros((batch_size, 14))
-    #load model
-    net = helper_fn.load_model(model_path, torch.device('cpu'), transition_params, 'resnet34')
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    net = helper_fn.load_model(model_path, device, transition_params, 'resnet34')
+
     for i_batch, batch in enumerate(test_loader):
         img_batch = batch['image'].to(device).float()
         label_batch = batch['label'].to(device).float()
         pred = net(img_batch, verbose=False)
         if i_batch > 0:
-            total_predicted = np.append(total_predicted, pred.detach().numpy(), axis=0)
-            total_labels = np.append(total_labels, label_batch.detach().numpy(), axis=0)
+            total_predicted = np.append(total_predicted, pred.cpu().detach().numpy(), axis=0)
+            total_labels = np.append(total_labels, label_batch.cpu().detach().numpy(), axis=0)
         else:
-            total_predicted = pred.detach().numpy()
-            total_labels = label_batch.detach().numpy()
+            total_predicted = pred.cpu().detach().numpy()
+            total_labels = label_batch.cpu().detach().numpy()
+
+        if i_batch % 50 == 0:
+            print(f'In [evaluate_model]: done for batch {i_batch}')
+
+    # folder_path = model_path.split("/")
+    # plot_ROC(total_predicted, total_labels, pathologies, save=True, folder="results/" + folder_path[1])
+
     folder_path = model_path.split("/")
-    path_results = "results/"+folder_path[1]
+    path_results = "results/" + folder_path[1]
     if not os.path.isdir(path_results):
-        os.mkdir(path_results)
+        os.makedirs(path_results)
+        print(f'In [evaluate_model]: path "{path_results}" created....')
+
     plot_ROC(total_predicted, total_labels, pathologies, save=True, folder=path_results)
 
 
@@ -83,6 +95,10 @@ def plot_ROC(prediction, target, class_names, save=False, folder=""):
     :param save: boolean, True to save the plot as roc_curve.png
     :return:
     """
+    '''if not os.path.exists(folder):
+        os.makedirs(folder)
+        print(f'In [plot_ROC]: path "{folder}" created....')'''
+
     n_classes = prediction.shape[1]
     fpr = dict()
     tpr = dict()
@@ -107,14 +123,15 @@ def plot_ROC(prediction, target, class_names, save=False, folder=""):
     plt.title('ResNet')
     plt.legend(loc="lower right")
     if save:
-        plt.savefig(folder+"/roc_curve.png")
-    with open(folder+'/auc.txt', 'w') as f:
+        plt.savefig(folder + "/roc_curve.png")
+    with open(folder + '/auc.txt', 'w') as f:
         for item in auc_list:
             f.write("%s\n" % item)
-    #plt.show()
+    # plt.show()
+    print('In [plot_ROC]: done')
 
 
-def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='./figures/', compare=False):
+def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True):
     """
     Plots class activation maps for a batch of images.
     :param image_batch: Batch of images, dimensions (Batch size, 3, H, W)
@@ -131,17 +148,21 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='./figure
     out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
     for i in range(len(out)):
         for c in range(out[0].size(0)):
-            heatmap = out[i][c].detach().numpy()
-            result = cv2.resize(heatmap, resize_dim)
+            heatmap = np.uint8(out[i][c].cpu().numpy() * 255)
+            heatmap = cv2.applyColorMap(cv2.resize(heatmap, resize_dim), cv2.COLORMAP_JET)
             # merge heatmap and image(make them transparent) on a same image
             if compare:
-                result = result * 0.3 + image_batch[i] * 0.5
-            #plt.pcolormesh(cv2.resize(img, resize_dim))
-            plt.imshow(result)
+                mean = torch.tensor([0.485, 0.456, 0.406]).unsqueeze(-1).unsqueeze(-1)
+                std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
+                img = (image_batch[i].cpu() + mean) * std
+                img = (img + 1) * 255 / 2
+                img = np.uint8(img.permute(1, 2, 0).numpy())
+                heatmap = np.uint8(heatmap * 0.3 + img * 0.5)
+            plt.imshow(heatmap)
             plt.title('Activation map, sample {}, class {}'.format(i, c))
             plt.savefig(f'{save_path}CAM_sample_{i}_class_{c}.png')
-            #plt.show()
-
+            # plt.show()
+            # cv2.imwrite(f'{save_path}CAM_sample_{i}_class_{c}.png', heatmap)
 
 
 def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figures/', threshold=[60, 180], merge=False):
@@ -160,7 +181,7 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
 
     H, W = resize_dim
     classes = out[0].size(0)
-    bbox_index = {}# with (sample, class, threshold) as keys
+    bbox_index = {}  # with (sample, class, threshold) as keys
     for i in range(len(out)):
         image = image_batch[i]
         for c in range(classes):
@@ -168,7 +189,7 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
             # 'two-level thresholding'
             maxValue = heatmap.max(axis=-1).max()
             for thre in threshold:
-                thresh = thre/255 * maxValue
+                thresh = thre / 255 * maxValue
                 th, dst = cv2.threshold(heatmap, thresh, maxValue, cv2.THRESH_BINARY)
                 # detect all contours and rectangular them
                 data = 255 * dst
@@ -194,7 +215,7 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
             ax.imshow(image)
             ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
             ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
-            #plt.savefig(f'{save_path}Bbox_sample_{i}_class_{c}.png')
+            # plt.savefig(f'{save_path}Bbox_sample_{i}_class_{c}.png')
             plt.show()
 
     return bbox_index
@@ -207,4 +228,3 @@ def limit(x, y, w, h, W, H):
     bbox_h = min(max(h, 0), H - y - 5)
 
     return bbox_x, bbox_y, bbox_w, bbox_h
-

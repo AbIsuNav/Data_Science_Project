@@ -17,10 +17,10 @@ class UnifiedNetwork(torch.nn.Module):
         :param which_resnet: a string such as 'resnet34' indicating the resnet to be loaded.
         """
         super().__init__()
-        self.resnet = resnet.load_resnet()
+        self.resnet = resnet.load_resnet(train_params=True)  # train the resnet as well
         self.trans_pool_prediction = transition.TransitionLayer(**transition_params)
 
-    def forward(self, input_img, verbose=False):
+    def forward(self, input_img, verbose=False, CAM=False):
         """
         The forward pass of the network, plugging in the output of the resnet to the transition layer
         :param verbose:
@@ -34,7 +34,7 @@ class UnifiedNetwork(torch.nn.Module):
             print('In [forward] of UnifiedNetwork: input batch size:', input_img.size())
             print('In [forward] of UnifiedNetwork: resnet output size:', resnet_out.size())
 
-        pred = self.trans_pool_prediction(resnet_out)
+        pred = self.trans_pool_prediction(resnet_out, CAM=CAM)
         if verbose:
             print('In [forward] of UnifiedNetwork: trans_pool_prediction output size:', pred.size())
             # print('In [forward] of UnifiedNetwork: prediction for the first 5 images:')

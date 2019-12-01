@@ -6,7 +6,7 @@ import torch
 from torchvision import transforms
 
 
-def compute_val_loss(unified_net, val_loader, device):
+def compute_val_loss(unified_net, val_loader, device, att2=False):
     """
     Computes the validation loss and return its float number.
     :param unified_net: the trained net.
@@ -21,7 +21,7 @@ def compute_val_loss(unified_net, val_loader, device):
         img_batch, label_batch = batch['image'].to(device), batch['label'].to(device)
         val_pred = unified_net(img_batch)
 
-        batch_loss = networks.WCEL(val_pred, label_batch)
+        batch_loss = networks.WCEL(val_pred, label_batch, att2)
         val_loss += batch_loss.item()
 
         # print(f'batch: {i_batch}, val_loss: {batch_loss.item()}')
