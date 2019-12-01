@@ -26,7 +26,7 @@ class ResNet_A2(nn.Module):
         self.resnet = resnet.load_resnet(train_params=True)
         self.pool = nn.AvgPool2d(kernel_size=7, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.resize = nn.Upsample(scale_factor=7)
+        self.resize = nn.Upsample(scale_factor=4)
         self.conv1 = nn.Conv2d(1024, self.inplanes, kernel_size=1)
         self.sig = nn.Sigmoid()
 
@@ -44,12 +44,13 @@ class ResNet_A2(nn.Module):
         x = torch.cat((x2, x1), 1)
         x = self.conv1(x)
         # end attention
-        x = self.avgpool(x)
+
         if verbose:
             print('In [forward] of Attention2_Network: input batch size:', input_img.size())
             print('Heatmap size: ', x.size())
         if get_heatmap:
             return x
+        x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.sig(x)
         # print(f'In [UnifiedNetwork].[forward]: the forward of resnet took {time.time() - before}')
