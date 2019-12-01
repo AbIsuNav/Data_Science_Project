@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import patches
 from sklearn.metrics import roc_curve, auc
 import cv2
+import os
 import torch
 
 from . import helper_fn
@@ -54,10 +55,11 @@ def evaluate_model(model_path, params):
     # copied exactly from Abgeiba's code
     total_predicted = np.zeros((batch_size, 14))
     total_labels = np.zeros((batch_size, 14))
+    #load model
+    net = helper_fn.load_model(model_path, torch.device('cpu'), transition_params, 'resnet34')
     for i_batch, batch in enumerate(test_loader):
         img_batch = batch['image'].to(device).float()
         label_batch = batch['label'].to(device).float()
-        net = helper_fn.load_model(model_path, torch.device('cpu'), transition_params, 'resnet34')
         pred = net(img_batch, verbose=False)
         if i_batch > 0:
             total_predicted = np.append(total_predicted, pred.detach().numpy(), axis=0)
@@ -66,7 +68,10 @@ def evaluate_model(model_path, params):
             total_predicted = pred.detach().numpy()
             total_labels = label_batch.detach().numpy()
     folder_path = model_path.split("/")
-    plot_ROC(total_predicted, total_labels, pathologies, save=True, folder="results/"+folder_path[1])
+    path_results = "results/"+folder_path[1]
+    if not os.path.isdir(path_results):
+        os.mkdir(path_results)
+    plot_ROC(total_predicted, total_labels, pathologies, save=True, folder=path_results)
 
 
 def plot_ROC(prediction, target, class_names, save=False, folder=""):
