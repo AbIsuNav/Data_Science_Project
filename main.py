@@ -19,12 +19,16 @@ from torch.optim.lr_scheduler import MultiStepLR
 def read_params_and_args():
     # Since not everybody uses comet, we determine if we should use comet_ml to track the experiment using the args
     parser = argparse.ArgumentParser()
+    parser.add_argument('--evaluate', action='store_true')  # if true, ROC plots will be drawn
+    parser.add_argument('--model_path', type=str, default='')  # the model to be evaluated
+
     parser.add_argument('--use_comet', action='store_true')  # if used, the experiment would be tracked by comet
     parser.add_argument('--save_checkpoints', action='store_true')  # if used, saves the model checkpoints if wanted
 
     parser.add_argument('--lr', type=float, default=0.001)  # setting lr, may be removed after grid search
     parser.add_argument('--wdecay', type=float, default=0.0)
     parser.add_argument('--max_epochs', type=int, default=30)  # setting the max epoch, may be removed after grid search
+    parser.add_argument('--simple_lr_decay', action='store_true')
 
     parser.add_argument('--net_type', type=str, default='unified_net')
     args = parser.parse_args()
@@ -42,7 +46,7 @@ def read_params_and_args():
     return args, params
 
 
-def train(model, optimizer, model_params, train_params, args, early_stopping=True, tracker=None):
+def train(model, optimizer, model_params, train_params, args, early_stopping=True, tracker=None, scheduler=None):
     max_epochs = train_params['max_epochs']
     batch_size = train_params['batch_size']
     save_model_interval = train_params['save_model_interval']
@@ -132,87 +136,107 @@ def train(model, optimizer, model_params, train_params, args, early_stopping=Tru
                 no_improvements = 0
                 # update the validation loss for the next epoch
                 best_val_loss = val_loss
-                print(f'In [train]: no_improvements set to 0 \n\n')
+                print(f'In [train]: no_improvements set to 0 \n')
 
             # terminate training after several epochs without validation improvement
             if no_improvements >= patience:
                 print(f'In [train]: no_improvements = {no_improvements}, training terminated...')
                 break
+
+        # learning rate decay, if wanted
+        if scheduler is not None:
+            scheduler.step()
+            print('In [train]: learning rate scheduling step() done \n\n')
         epoch += 1
 
 
 def main():
     args, params = read_params_and_args()
 
-    # data files
-    data_folder = params['data_folder']
-    h5_file = params['h5_file']
+    # model evaluation
+    if args.evaluate:
+        helper.evaluate_model(args.model_path, params)
 
-    # training params
-    batch_size = params['batch_size']
-    shuffle = params['shuffle']
-    num_workers = params['num_workers']
-    # max_epochs = params['max_epochs']
-    max_epochs = args.max_epochs
-    save_model_interval = params['save_model_interval']
-    low_lr = params['lower_lr']
-    # network_type = params["network"]
-    network_type = args.net_type
-    # resnet and transition params
-    which_resnet = params['which_resnet']
-    transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
-    print('In [main]: transition params:', transition_params)
-
-    # read the data and the labels
-    partition, labels, labels_hot = \
-        data_handler.read_already_partitioned(h5_file)
-
-    # not sure why such preprocessing is needed (taken from taken from https://pytorch.org/hub/pytorch_vision_resnet/)
-    preprocess = helper.preprocess_fn(no_crop=True)  # does not crop the images
-
-    # cuda for PyTorch
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda:0" if use_cuda else "cpu")
-    cudnn.benchmark = True  # this finds the optimum algorithm for the hardware if possible by kind of auto-tuning
-
-    # creating the train and validation data loaders
-    loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
-    train_loader, val_loader, _ = \
-        data_handler.create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params)
-
-    # the model
-    if network_type == "attention2":
-        unified_net = resnet_att2.ResNet_A2(which_resnet).to(device)
+    # training
     else:
-        unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
+        # data files
+        data_folder = params['data_folder']
+        h5_file = params['h5_file']
 
-    # Adam optimizer with default parameters
-    lr = args.lr
-    decay = args.wdecay
+        # training params
+        batch_size = params['batch_size']
+        shuffle = params['shuffle']
+        num_workers = params['num_workers']
+        # max_epochs = params['max_epochs']
+        max_epochs = args.max_epochs
+        save_model_interval = params['save_model_interval']
+        low_lr = params['lower_lr']
+        # network_type = params["network"]
+        network_type = args.net_type
+        # resnet and transition params
+        which_resnet = params['which_resnet']
+        transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
+        print('In [main]: transition params:', transition_params)
 
-    optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr, weight_decay=decay)
-    if low_lr:
-        milestones = list(range(max_epochs))
-        scheduler = MultiStepLR(optimizer, milestones=milestones[1:])
-    print(f'In [main]: created the Adam optimizer with learning rate: {lr}')
+        # read the data and the labels
+        partition, labels, labels_hot = \
+            data_handler.read_already_partitioned(h5_file)
 
-    # setting the training params and model params used during training
-    model_params = {'transition_params': transition_params}
-    train_params = {'max_epochs': max_epochs,
-                    'batch_size': batch_size,
-                    'save_model_interval': save_model_interval,
-                    'train_loader': train_loader,
-                    'val_loader': val_loader,
-                    'device': device}
+        # not sure why such preprocessing is needed (taken from taken from https://pytorch.org/hub/pytorch_vision_resnet/)
+        preprocess = helper.preprocess_fn(no_crop=True)  # does not crop the images
 
-    # initialize our comet experiment to track the run, if wanted by the user
-    if args.use_comet:
-        tracker = helper.init_comet(params)
-        print("In [main]: comet experiment initialized...")
-        train(unified_net, optimizer, model_params, train_params, args, early_stopping=True, tracker=tracker)
+        # cuda for PyTorch
+        use_cuda = torch.cuda.is_available()
+        device = torch.device("cuda:0" if use_cuda else "cpu")
+        cudnn.benchmark = True  # this finds the optimum algorithm for the hardware if possible by kind of auto-tuning
 
-    else:
-        train(unified_net, optimizer, model_params, train_params, args, early_stopping=True)
+        # creating the train and validation data loaders
+        loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
+        train_loader, val_loader, _ = \
+            data_handler.create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params)
+
+        # the model
+        if network_type == "attention2":
+            unified_net = resnet_att2.ResNet_A2(which_resnet).to(device)
+        else:
+            unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
+
+        # Adam optimizer with default parameters
+        lr = args.lr
+        decay = args.wdecay
+
+        optimizer = torch.optim.Adam(params=unified_net.parameters(), lr=lr, weight_decay=decay)
+        print(f'In [main]: created the Adam optimizer with learning rate: {lr}')
+
+        if low_lr:
+            milestones = list(range(max_epochs))
+            scheduler = MultiStepLR(optimizer, milestones=milestones[1:])
+
+        # simple learning rate decay
+        lr_scheduler = None
+        if args.simple_lr_decay:
+            # make the learning rate half after the first 3 epochs: e.g., 1e-4 -> 5e-5 -> 2.5e-5 -> 1.25e-5
+            lr_scheduler = MultiStepLR(optimizer, milestones=[1, 2, 3], gamma=0.5)
+
+        # setting the training params and model params used during training
+        model_params = {'transition_params': transition_params}
+        train_params = {'max_epochs': max_epochs,
+                        'batch_size': batch_size,
+                        'save_model_interval': save_model_interval,
+                        'train_loader': train_loader,
+                        'val_loader': val_loader,
+                        'device': device}
+
+        # initialize our comet experiment to track the run, if wanted by the user
+        if args.use_comet:
+            tracker = helper.init_comet(params)
+            print("In [main]: comet experiment initialized...")
+            train(unified_net, optimizer, model_params, train_params, args,
+                  early_stopping=True, tracker=tracker, scheduler=lr_scheduler)
+
+        else:
+            train(unified_net, optimizer, model_params, train_params, args,
+                  early_stopping=True, scheduler=lr_scheduler)
 
 
 def prepare_data_if_not_available():
