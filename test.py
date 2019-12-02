@@ -96,10 +96,18 @@ def test_gray_scale():
         helper.plot_heatmaps(image, net, resize_dim=(256, 256), save_path=f'figures/{model_name}/', show_or_save='show')
 
 
+def test_read_bbox():
+    bbox_file = 'BBox_List_2017.csv'
+    rows = data_handler.read_bbox(bbox_file)
+    for row in rows[:10]:
+        print(row)
+
+
 def main():
     # test_load_models_2()
     # test_download_data()
-    test_gray_scale()
+    # test_gray_scale()
+    test_read_bbox()
 
 
 if __name__ == '__main__':

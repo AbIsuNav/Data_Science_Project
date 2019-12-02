@@ -12,6 +12,7 @@ import os
 import h5py
 import numpy as np
 import random
+import csv
 
 
 class Dataset(data.Dataset):
@@ -295,3 +296,25 @@ def create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, 
     test_loader = data.DataLoader(dataset=test_set, batch_size=batch_size,
                                   shuffle=False, num_workers=num_workers)
     return train_loader, val_loader, test_loader
+
+
+def read_bbox(bbox_file_name):
+    """
+    Note: If one needs to get the class of the disease, he/she could look at the 'read_and_partition_data' and use a
+    similar dictionary to convert the disease name to the disease class.
+    :param bbox_file_name: the name of the bbox file. NOTE: this file should exist in the 'data' folder, and only the
+    name of the file should be given to this function, like 'BBox_List_2017.csv', not the full path. See the test module
+    for usage.
+    :return: list containing the rows of the file.
+    """
+    bbox_path = 'data/' + bbox_file_name
+    with open(bbox_path, 'rt') as f:
+        reader = csv.reader(f)
+        rows = list(reader)[1:]  # ignoring the first row because it is the titles
+
+    for row in rows:
+        for idx in [2, 3, 4, 5]:
+            row[idx] = float(row[idx])  # convert the box coordinates from str to float
+
+    print(f'In [read_bbox]: read bounding boxes for {len(rows)} images')
+    return rows
