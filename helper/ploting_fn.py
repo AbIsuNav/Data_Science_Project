@@ -131,7 +131,7 @@ def plot_ROC(prediction, target, class_names, save=False, folder=""):
     print('In [plot_ROC]: done')
 
 
-def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True):
+def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True, show_or_save='both'):
     """
     Plots class activation maps for a batch of images.
     :param image_batch: Batch of images, dimensions (Batch size, 3, H, W)
@@ -139,6 +139,8 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
     :param save_path: Path to store figures of heatmaps, False
     :param resize_dim: Dimension for upsampling of images
     :param compare: set True to show figure with heatmap and original image overlapping
+    :param show_or_save: determines how the heatmap should be generate, it could be 'show', 'save' or 'both' for both
+    showing and saving the heatmaps.
     :return:
     """
     # creating the path
@@ -167,9 +169,17 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
                 img = (img + 1) * 255 / 2
                 img = np.uint8(img.permute(1, 2, 0).numpy())
                 heatmap = np.uint8(heatmap * 0.3 + img * 0.5)
-            plt.imshow(heatmap)
-            plt.title('Activation map, sample {}, class {}'.format(i, c))
-            plt.savefig(f'{save_path}CAM_sample_{i}_class_{c}.png')
+
+            if show_or_save == 'show' or show_or_save == 'both':
+                plt.imshow(heatmap)
+                plt.title('Activation map, sample {}, class {}'.format(i, c))
+                plt.show()
+
+            if show_or_save == 'save' or show_or_save == 'both':
+                # plt.imshow(heatmap)
+                # plt.title('Activation map, sample {}, class {}'.format(i, c))
+                plt.savefig(f'{save_path}CAM_sample_{i}_class_{c}.png')
+
             # plt.show()
             # cv2.imwrite(f'{save_path}CAM_sample_{i}_class_{c}.png', heatmap)
 

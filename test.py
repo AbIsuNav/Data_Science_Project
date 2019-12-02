@@ -80,7 +80,8 @@ def test_gray_scale():
                                                          device, loader_params, scale='gray')
     # model_path = "models/max_epochs=30_batch_size=256_pool_mode=max_lr=5e-05_no_crop=True/unified_net_epoch_23.pt"
     # model_path = "models/max_epochs=50_batch_size=128_pool_mode=max_lr=0.0001_no_crop=True_es=True_26253292/unified_net_epoch_1.pt"
-    model_path = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=True/unified_net_epoch_8.pt'
+    # model_path = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=True/unified_net_epoch_8.pt'
+    model_path = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=False/unified_net_epoch_11.pt'
 
     # reading the other params from the JSON file
     with open('params.json', 'r') as f:
@@ -92,7 +93,7 @@ def test_gray_scale():
         image = batch['image'].to(device).float()
         print(f'image shape: {image.shape}')
         model_name = model_path.split("/")[1]
-        helper.plot_heatmaps(image, net, resize_dim=(256, 256), save_path=f'figures/{model_name}/')
+        helper.plot_heatmaps(image, net, resize_dim=(256, 256), save_path=f'figures/{model_name}/', show_or_save='show')
 
 
 def main():
