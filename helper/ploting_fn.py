@@ -141,6 +141,15 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
     :param compare: set True to show figure with heatmap and original image overlapping
     :return:
     """
+    # creating the path
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        print(f'In [plot_heatmaps]: path "{save_path}" created.')
+
+    # setting requires_grad to False to enable .numpy() function on the model
+    for p in model.parameters():
+        p.requires_grad = False
+
     model.eval()
     out = model(image_batch, CAM=True)
     # normalization
