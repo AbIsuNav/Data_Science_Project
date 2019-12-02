@@ -170,11 +170,13 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
                 img = np.uint8(img.permute(1, 2, 0).numpy())
                 heatmap = np.uint8(heatmap * 0.3 + img * 0.5)
 
+            # showing the result
             if show_or_save == 'show' or show_or_save == 'both':
                 plt.imshow(heatmap)
                 plt.title('Activation map, sample {}, class {}'.format(i, c))
                 plt.show()
 
+            # saving the result
             if show_or_save == 'save' or show_or_save == 'both':
                 # plt.imshow(heatmap)
                 # plt.title('Activation map, sample {}, class {}'.format(i, c))

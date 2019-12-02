@@ -62,7 +62,8 @@ def test_download_data():
 
 
 def test_gray_scale():
-    path = 'data_big_original/extracted/images'
+    # path = 'data_big_original/extracted/images'
+    path = 'data_big'
     h5_file = 'chest_xray.h5'
 
     partition, labels, labels_hot = \
@@ -79,9 +80,8 @@ def test_gray_scale():
     _, _, test_loader = data_handler.create_data_loaders(partition, labels, labels_hot, path, preprocess,
                                                          device, loader_params, scale='gray')
     # model_path = "models/max_epochs=30_batch_size=256_pool_mode=max_lr=5e-05_no_crop=True/unified_net_epoch_23.pt"
-    # model_path = "models/max_epochs=50_batch_size=128_pool_mode=max_lr=0.0001_no_crop=True_es=True_26253292/unified_net_epoch_1.pt"
     # model_path = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=True/unified_net_epoch_8.pt'
-    model_path = 'models/max_epochs=30_batch_size=256_pool_mode=max_lr=0.0001_no_crop=False/unified_net_epoch_11.pt'
+    model_path = "models/max_epochs=50_batch_size=128_pool_mode=max_lr=0.0001_no_crop=True_es=True_26253292/unified_net_epoch_1.pt"
 
     # reading the other params from the JSON file
     with open('params.json', 'r') as f:
