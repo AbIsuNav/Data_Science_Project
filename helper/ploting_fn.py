@@ -8,6 +8,7 @@ import os
 
 from . import helper_fn
 import data_handler
+from torch.utils import data as udata
 
 
 def evaluate_model(model_path, params):
@@ -191,7 +192,7 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
     Generationg bounding box on the original image:
     Threshold the image and rectangular the contours, pick the largest one.
     further method include merge/add boxes from different classes given the prediction.
-    :return: cooridnator of the bounding box of each class
+    :return: cooridnator of the bounding box of each class: (x, y, w, h)
     """
     # assume it comes in batch, generate the heatmap first
     model.eval()
@@ -227,13 +228,14 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
                 largest = bbox_area.index(max(bbox_area))
                 (x, y, w, h) = bbox[largest][0], bbox[largest][1], bbox[largest][2], bbox[largest][3]
                 if merge:
-                    # compute overlap, rank and merge, unfinished
+                    # compute overlap, rank and merge, not sure if it's necessary
                     pass
                 bbox_index[i, c, thre] = (x, y, w, h)
             fig, ax = plt.subplots(1)
             (x, y, w, h) = bbox_index[i, c, threshold[0]]
             (x2, y2, w2, h2) = bbox_index[i, c, threshold[1]]
             ax.imshow(image)
+            # th
             ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
             ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
             # plt.savefig(f'{save_path}Bbox_sample_{i}_class_{c}.png')
@@ -249,3 +251,127 @@ def limit(x, y, w, h, W, H):
     bbox_h = min(max(h, 0), H - y - 5)
 
     return bbox_x, bbox_y, bbox_w, bbox_h
+
+def compute_Intersection(y_true, y_pred, mode="IoU"):
+    """
+    :param y_true: assume the format of bounding box is [x, y, w, h]
+    :param y_pred: the predicted bounding box with format [x, y, w, h]
+    :param mode: IoU or IoBB
+    :return:  intersection over union/detected B-Box area ratio
+    """
+    # get corresponding bounding box given y_pred labels
+    #generate_bbox(image_batch, model)
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xR = max(y_true[0], y_pred[0])
+    yR = max(y_true[1], y_pred[1])
+    xL = min(y_true[0] + y_true[2], y_pred[0] + y_pred[2])
+    yL = min(y_true[1] + y_true[3], y_pred[1] + y_pred[3])
+    # compute the area of intersection rectangle
+    inter_area = max(0, xL - xR + 1) * max(0, yL - yR + 1)
+    # compute the area of both the prediction and ground-truth rectangles
+    #true_area = (y_true[2] - y_true[0] + 1) * (y_true[3] - y_true[1] + 1) # if GT is [x1,y1,x2,y2]
+    true_area = y_true[2] * y_pred[3]
+    pred_area = y_pred[2] * y_pred[3]
+    if mode=="IoU":
+        # compute the intersection over union ratio(IoU)
+        ratio = inter_area / float(true_area + pred_area - inter_area)
+    else:
+        # compute intersection over the detected B-Box area ratio
+        ratio = inter_area / pred_area
+
+    return ratio
+
+
+def acc_bbox(y_pred, y_true, mode="IoU"):
+    """
+    :param y_pred: predition with highest scores?
+    :param y_true: ground truth label of class
+    :param mode: evaluation metric type
+    :return: Accuracy of localization
+    """
+    if mode=="IoU":
+        T = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+        res = compute_Intersection(y_pred, y_true, mode="IoU")
+    else:
+        T = [0.1, 0.25, 0.5, 0.75, 0.9]
+        res = compute_Intersection(y_pred, y_true, mode="IoBB")
+    acc = {} # key is t, value is accuracy
+    # compute accuracy for different T
+    for t in T:
+        acc[t] = 0
+        for i in len(y_pred):
+            if res >= t:
+                acc[t] += 1
+        acc[t] = acc[t]/len(y_pred)
+
+    return acc
+
+def evaluate_model_boxes(model_path, params):
+    no_crop = True if 'no_crop=True' in model_path else False
+    print(f'In [evaluate_model]: evaluating model: "{model_path}", no_crop: {no_crop} \n')
+
+    # adjust S, for models with no_crop in their names, S is 8 because the training and test images were of size 256x256
+    transition_params = params['transition_params']
+    transition_params['S'] = 8 if no_crop else 7
+
+    # for the very first saved models, include_1x1_conv was set to False and needs to be adjusted
+    # if model_path == 'models/unified_net_step_9.pt' or model_path == 'models/unified_net_epoch_25.pt':
+    #    transition_params['include_1x1_conv'] = False
+
+    print(f'In [evaluate_model]: \n'
+          f'model: {model_path} \n'
+          f'transition_params: {transition_params} \n')
+
+    # data files
+    data_folder = params['data_folder']
+    h5_file = params['h5_file']
+    pathologies = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis',
+                   'Hernia',
+                   'Infiltrate', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+
+    # training params
+    batch_size = params['batch_size']
+    shuffle = params['shuffle']
+    num_workers = params['num_workers']
+
+    preprocess = helper_fn.preprocess_fn(no_crop)  # the function needs to know if it should crop the images
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+
+    # read the data and the labels
+    bbox_data = data_handler.read_bbox('BBox_List_2017.csv')
+    ids = [data[0] for data in bbox_data]
+    labels = {data[0]: pathologies.index(data[1]) for data in bbox_data}
+    bbox = {data[0]: data[2:] for data in bbox_data}
+
+    loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
+    test_set = data_loader.Dataset(ids, labels, [], data_folder, preprocess, device, scale='rbg', bbox=bbox)
+    test_loader = udata.DataLoader(dataset=test_set, batch_size=batch_size,
+                                  shuffle=False, num_workers=num_workers)
+
+    print(f'In [evaluate_model]: loaded test loaders '
+          f'with number of batches {len(test_loader)}')
+
+    # copied exactly from Abgeiba's code
+    total_predicted = np.zeros((batch_size, 14))
+    total_labels = np.zeros((batch_size, 14))
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    net = helper_fn.load_model(model_path, device, transition_params, 'resnet34')
+
+    for i_batch, batch in enumerate(test_loader):
+        img_batch = batch['image'].to(device).float()
+        label_batch = batch['label'][0].to(device).float()
+        bbox_truth = batch['label'][1].to(device).float()
+
+        bbox_pred = generate_bbox(img_batch, net, resize_dim=(1024, 1024), threshold=[60, 180], merge=False)
+
+
+
+    folder_path = model_path.split("/")
+    path_results = "results/" + folder_path[1]
+    if not os.path.isdir(path_results):
+        os.makedirs(path_results)
+        print(f'In [evaluate_model]: path "{path_results}" created....')
+
+

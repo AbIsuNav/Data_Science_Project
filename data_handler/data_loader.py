@@ -12,13 +12,14 @@ import os
 import h5py
 import numpy as np
 import random
+import csv
 
 
 class Dataset(data.Dataset):
     """
     This characterizes a custom PyTorch dataset.
     """
-    def __init__(self, img_ids, labels, labels_hot, data_folder, preprocess, device, scale='rgb'):
+    def __init__(self, img_ids, labels, labels_hot, data_folder, preprocess, device, scale='rgb', bbox={}):
         """
         Initialization of the custom Dataset.
         :param img_ids: list of the id of the images in the dataset_path
@@ -36,6 +37,7 @@ class Dataset(data.Dataset):
         self.preprocess = preprocess
         self.device = device
         self.scale = scale
+        self.bbox = bbox
 
     def __len__(self):
         return len(self.img_ids)
@@ -58,10 +60,12 @@ class Dataset(data.Dataset):
         # preprocessing the image (crop etc.) and converting to the available device
         input_tensor = self.preprocess(img)
 
-        # convert 1d list to np array so that Pytorch can easily convert to tensor
-        labels = np.array(self.labels_hot[img_id])
-
-        sample = {'image': input_tensor, 'label': labels}
+        if len(list(self.bbox.keys())) > 0:
+            sample = {'image': input_tensor, 'label': (self.labels[img_id], np.array(self.bbox[img_id]))}
+        else:
+            # convert 1d list to np array so that Pytorch can easily convert to tensor
+            labels = np.array(self.labels_hot[img_id])
+            sample = {'image': input_tensor, 'label': labels}
         return sample
         # return input_tensor, labels
 
@@ -295,3 +299,25 @@ def create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, 
     test_loader = data.DataLoader(dataset=test_set, batch_size=batch_size,
                                   shuffle=False, num_workers=num_workers)
     return train_loader, val_loader, test_loader
+
+
+def read_bbox(bbox_file_name):
+    """
+    Note: If one needs to get the class of the disease, he/she could look at the 'read_and_partition_data' and use a
+    similar dictionary to convert the disease name to the disease class.
+    :param bbox_file_name: the name of the bbox file. NOTE: this file should exist in the 'data' folder, and only the
+    name of the file should be given to this function, like 'BBox_List_2017.csv', not the full path. See the test module
+    for usage.
+    :return: list containing the rows of the file.
+    """
+    bbox_path = 'data/' + bbox_file_name
+    with open(bbox_path, 'rt') as f:
+        reader = csv.reader(f)
+        rows = list(reader)[1:]  # ignoring the first row because it is the titles
+
+    for row in rows:
+        for idx in [2, 3, 4, 5]:
+            row[idx] = float(row[idx])  # convert the box coordinates from str to float
+
+    print(f'In [read_bbox]: read bounding boxes for {len(rows)} images')
+    return rows

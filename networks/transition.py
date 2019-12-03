@@ -25,6 +25,7 @@ class TransitionLayer(nn.Module):
             # self.conv1 = nn.Conv2d(input_features, D, kernel_size=3, stride=1, padding=1, bias=False)
             # self.bn = nn.BatchNorm2d(D)
         elif upsample_conv:
+            self.relu = nn.ReLU(inplace=True)
             self.conv1 = nn.ConvTranspose2d(input_features, D, 4, 2, 1, bias=False)
             self.bn1 = nn.BatchNorm2d(D)
             self.conv2 = nn.ConvTranspose2d(D, D, 4, 2, 1, bias=False)
@@ -56,10 +57,10 @@ class TransitionLayer(nn.Module):
         elif self.upsample_conv:
             x = self.conv1(x)
             x = self.bn1(x)
-            x = nn.ReLU(x)
+            x = self.relu(x)
             x = self.conv2(x)
             x = self.bn2(x)
-            x = nn.ReLU(x)
+            x = self.relu(x)
 
         if not CAM:  # classification
             # After global pool dim=
