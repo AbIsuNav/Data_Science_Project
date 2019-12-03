@@ -196,7 +196,8 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
     """
     # assume it comes in batch, generate the heatmap first
     model.eval()
-    out = model(image_batch, CAM=True)
+    with torch.no_grad():
+        out = model(image_batch, CAM=True)
     # normalization
     out = out - torch.min(out, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
     out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
@@ -207,7 +208,7 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
     for i in range(len(out)):
         image = image_batch[i]
         for c in range(classes):
-            heatmap = cv2.resize(out[i][c].detach().numpy(), resize_dim)
+            heatmap = cv2.resize(out[i][c].cpu().numpy(), resize_dim)
             # 'two-level thresholding'
             maxValue = heatmap.max(axis=-1).max()
             for thre in threshold:
@@ -216,7 +217,7 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
                 # detect all contours and rectangular them
                 data = 255 * dst
                 img = data.astype(np.uint8)
-                _, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
                 bbox = []
                 bbox_area = []
                 for cnt in contours:
@@ -231,15 +232,15 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
                     # compute overlap, rank and merge, not sure if it's necessary
                     pass
                 bbox_index[i, c, thre] = (x, y, w, h)
-            fig, ax = plt.subplots(1)
-            (x, y, w, h) = bbox_index[i, c, threshold[0]]
-            (x2, y2, w2, h2) = bbox_index[i, c, threshold[1]]
-            ax.imshow(image)
+            # fig, ax = plt.subplots(1)
+            # (x, y, w, h) = bbox_index[i, c, threshold[0]]
+            # (x2, y2, w2, h2) = bbox_index[i, c, threshold[1]]
+            # ax.imshow(image)
             # th
-            ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
-            ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
+            # ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
+            # ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
             # plt.savefig(f'{save_path}Bbox_sample_{i}_class_{c}.png')
-            plt.show()
+            # plt.show()
 
     return bbox_index
 
@@ -295,16 +296,14 @@ def acc_bbox(y_pred, y_true, mode="IoU"):
     else:
         T = [0.1, 0.25, 0.5, 0.75, 0.9]
         res = compute_Intersection(y_pred, y_true, mode="IoBB")
-    acc = {} # key is t, value is accuracy
+    acc = np.zeros(len(T)) # key is t, value is accuracy
     # compute accuracy for different T
-    for t in T:
-        acc[t] = 0
-        for i in len(y_pred):
-            if res >= t:
-                acc[t] += 1
-        acc[t] = acc[t]/len(y_pred)
+    for i, t in enumerate(T):
+        if res >= t:
+            acc[i] += 1
 
     return acc
+
 
 def evaluate_model_boxes(model_path, params):
     no_crop = True if 'no_crop=True' in model_path else False
@@ -345,7 +344,7 @@ def evaluate_model_boxes(model_path, params):
     bbox = {data[0]: data[2:] for data in bbox_data}
 
     loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
-    test_set = data_loader.Dataset(ids, labels, [], data_folder, preprocess, device, scale='rbg', bbox=bbox)
+    test_set = data_handler.data_loader.Dataset(ids, labels, [], data_folder, preprocess, device, scale='rbg', bbox=bbox)
     test_loader = udata.DataLoader(dataset=test_set, batch_size=batch_size,
                                   shuffle=False, num_workers=num_workers)
 
@@ -353,18 +352,38 @@ def evaluate_model_boxes(model_path, params):
           f'with number of batches {len(test_loader)}')
 
     # copied exactly from Abgeiba's code
-    total_predicted = np.zeros((batch_size, 14))
-    total_labels = np.zeros((batch_size, 14))
+    #total_predicted = np.zeros((batch_size, 14))
+    #total_labels = np.zeros((batch_size, 14))
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = helper_fn.load_model(model_path, device, transition_params, 'resnet34')
+    net = helper_fn.load_model('./models'+model_path, device, transition_params, 'resnet34')
+    net.eval()
+
+    acc_iou = np.zeros((len(pathologies), 7))
+    acc_iobb = np.zeros((len(pathologies), 5))
+    count = np.zeros((len(pathologies), 1))
 
     for i_batch, batch in enumerate(test_loader):
         img_batch = batch['image'].to(device).float()
-        label_batch = batch['label'][0].to(device).float()
+        label_batch = batch['label'][0][0].item()
         bbox_truth = batch['label'][1].to(device).float()
 
+        # with torch.no_grad():
+        #     out = net(img_batch)
+
         bbox_pred = generate_bbox(img_batch, net, resize_dim=(1024, 1024), threshold=[60, 180], merge=False)
+        acc_iou[label_batch] += acc_bbox(bbox_pred[0, label_batch, 180], bbox_truth[0], mode='IoU')
+        acc_iobb[label_batch] += acc_bbox(bbox_pred[0, label_batch, 180], bbox_truth[0], mode='IoBB')
+        count[label_batch] += 1
+        if i_batch % 50 == 0:
+            print(f'Sample: {i_batch}')
+            print(f'IoU: {acc_iou/count}')
+            print(f'IoBB: {acc_iobb/count}')
+            print('-------------------------------------------')
+    acc_iou = acc_iou/count
+    acc_iobb = acc_iobb/count
+    print(f'IoU: {acc_iou}')
+    print(f'IoBB: {acc_iobb}')
 
 
 
@@ -372,6 +391,13 @@ def evaluate_model_boxes(model_path, params):
     path_results = "results/" + folder_path[1]
     if not os.path.isdir(path_results):
         os.makedirs(path_results)
-        print(f'In [evaluate_model]: path "{path_results}" created....')
+    with open(path_results + '/IoU.txt', 'w') as f:
+        for i, item in enumerate(acc_iou):
+            line = f'Class: {pathologies[i]} - IoU: {item}'
+            f.write("%s\n" % line)
+    with open(path_results + '/IoBB.txt', 'w') as f:
+        for i, item in enumerate(acc_iobb):
+            line = f'Class: {pathologies[i]} - IoBB: {item}'
+            f.write("%s\n" % line)
 
 
