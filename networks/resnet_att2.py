@@ -1,4 +1,4 @@
-#from . import resnet
+from . import resnet
 import torch
 from torchvision import transforms
 from PIL import Image
