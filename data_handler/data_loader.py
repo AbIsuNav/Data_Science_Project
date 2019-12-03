@@ -19,7 +19,7 @@ class Dataset(data.Dataset):
     """
     This characterizes a custom PyTorch dataset.
     """
-    def __init__(self, img_ids, labels, labels_hot, data_folder, preprocess, device, scale='rgb'):
+    def __init__(self, img_ids, labels, labels_hot, data_folder, preprocess, device, scale='rgb', bbox={}):
         """
         Initialization of the custom Dataset.
         :param img_ids: list of the id of the images in the dataset_path
@@ -37,6 +37,7 @@ class Dataset(data.Dataset):
         self.preprocess = preprocess
         self.device = device
         self.scale = scale
+        self.bbox = bbox
 
     def __len__(self):
         return len(self.img_ids)
@@ -59,10 +60,12 @@ class Dataset(data.Dataset):
         # preprocessing the image (crop etc.) and converting to the available device
         input_tensor = self.preprocess(img)
 
-        # convert 1d list to np array so that Pytorch can easily convert to tensor
-        labels = np.array(self.labels_hot[img_id])
-
-        sample = {'image': input_tensor, 'label': labels}
+        if len(list(self.bbox.keys())) > 0:
+            sample = {'image': input_tensor, 'label': (self.labels[img_id], np.array(self.bbox[img_id]))}
+        else:
+            # convert 1d list to np array so that Pytorch can easily convert to tensor
+            labels = np.array(self.labels_hot[img_id])
+            sample = {'image': input_tensor, 'label': labels}
         return sample
         # return input_tensor, labels
 

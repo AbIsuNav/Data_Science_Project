@@ -8,6 +8,7 @@ import os
 
 from . import helper_fn
 import data_handler
+from torch.utils import data as udata
 
 
 def evaluate_model(model_path, params):
@@ -304,3 +305,73 @@ def acc_bbox(y_pred, y_true, mode="IoU"):
         acc[t] = acc[t]/len(y_pred)
 
     return acc
+
+def evaluate_model_boxes(model_path, params):
+    no_crop = True if 'no_crop=True' in model_path else False
+    print(f'In [evaluate_model]: evaluating model: "{model_path}", no_crop: {no_crop} \n')
+
+    # adjust S, for models with no_crop in their names, S is 8 because the training and test images were of size 256x256
+    transition_params = params['transition_params']
+    transition_params['S'] = 8 if no_crop else 7
+
+    # for the very first saved models, include_1x1_conv was set to False and needs to be adjusted
+    # if model_path == 'models/unified_net_step_9.pt' or model_path == 'models/unified_net_epoch_25.pt':
+    #    transition_params['include_1x1_conv'] = False
+
+    print(f'In [evaluate_model]: \n'
+          f'model: {model_path} \n'
+          f'transition_params: {transition_params} \n')
+
+    # data files
+    data_folder = params['data_folder']
+    h5_file = params['h5_file']
+    pathologies = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis',
+                   'Hernia',
+                   'Infiltrate', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+
+    # training params
+    batch_size = params['batch_size']
+    shuffle = params['shuffle']
+    num_workers = params['num_workers']
+
+    preprocess = helper_fn.preprocess_fn(no_crop)  # the function needs to know if it should crop the images
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+
+    # read the data and the labels
+    bbox_data = data_handler.read_bbox('BBox_List_2017.csv')
+    ids = [data[0] for data in bbox_data]
+    labels = {data[0]: pathologies.index(data[1]) for data in bbox_data}
+    bbox = {data[0]: data[2:] for data in bbox_data}
+
+    loader_params = {'batch_size': batch_size, 'shuffle': shuffle, 'num_workers': num_workers}
+    test_set = data_loader.Dataset(ids, labels, [], data_folder, preprocess, device, scale='rbg', bbox=bbox)
+    test_loader = udata.DataLoader(dataset=test_set, batch_size=batch_size,
+                                  shuffle=False, num_workers=num_workers)
+
+    print(f'In [evaluate_model]: loaded test loaders '
+          f'with number of batches {len(test_loader)}')
+
+    # copied exactly from Abgeiba's code
+    total_predicted = np.zeros((batch_size, 14))
+    total_labels = np.zeros((batch_size, 14))
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    net = helper_fn.load_model(model_path, device, transition_params, 'resnet34')
+
+    for i_batch, batch in enumerate(test_loader):
+        img_batch = batch['image'].to(device).float()
+        label_batch = batch['label'][0].to(device).float()
+        bbox_truth = batch['label'][1].to(device).float()
+
+        bbox_pred = generate_bbox(img_batch, net, resize_dim=(1024, 1024), threshold=[60, 180], merge=False)
+
+
+
+    folder_path = model_path.split("/")
+    path_results = "results/" + folder_path[1]
+    if not os.path.isdir(path_results):
+        os.makedirs(path_results)
+        print(f'In [evaluate_model]: path "{path_results}" created....')
+
+
