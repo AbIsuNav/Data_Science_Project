@@ -12,19 +12,22 @@ import os
 import h5py
 import numpy as np
 import random
+import csv
 
 
 class Dataset(data.Dataset):
     """
     This characterizes a custom PyTorch dataset.
     """
-    def __init__(self, img_ids, labels, labels_hot, data_folder, preprocess, device):
+    def __init__(self, img_ids, labels, labels_hot, data_folder, preprocess, device, scale='rgb'):
         """
         Initialization of the custom Dataset.
         :param img_ids: list of the id of the images in the dataset_path
         :param labels: list of all the corresponding labels
         :param labels_hot: labels in the one-hot format (for our case multiple hots)
         :param data_folder: the folder containing the data. NOTE: this function expects a single directory name
+        :param scale: determines the type of the input images. If scale is 'gray', it will be converted to RGB in the
+        __getitem__ function.
         and automatically looks for that directory in the 'data/' folder.
         """
         self.labels = labels
@@ -33,6 +36,7 @@ class Dataset(data.Dataset):
         self.data_folder = data_folder
         self.preprocess = preprocess
         self.device = device
+        self.scale = scale
 
     def __len__(self):
         return len(self.img_ids)
@@ -47,10 +51,13 @@ class Dataset(data.Dataset):
 
         # Load data and get label
         img = Image.open('data/{}/{}'.format(self.data_folder, img_id))
+
+        # convert to RGB if needed
+        if self.scale == 'gray':
+            img = to_rgb(img)
+
         # preprocessing the image (crop etc.) and converting to the available device
         input_tensor = self.preprocess(img)
-        # unsqueeze avoided because the image has 3 channels itself
-        # input_tensor = input_tensor.unsqueeze(0)
 
         # convert 1d list to np array so that Pytorch can easily convert to tensor
         labels = np.array(self.labels_hot[img_id])
@@ -58,6 +65,17 @@ class Dataset(data.Dataset):
         sample = {'image': input_tensor, 'label': labels}
         return sample
         # return input_tensor, labels
+
+
+def to_rgb(gray_image):
+    """
+    Converts the gray-scale image to RGB.
+    :param gray_image:
+    :return:
+    """
+    rgb = Image.new('RGB', gray_image.size)
+    rgb.paste(gray_image)
+    return rgb
 
 
 def read_already_partitioned(h5_file):
@@ -259,22 +277,44 @@ def save_formatted_data(image_ids, labels, labels_hot):
     print('In [save_formatted_data]: save the formatted data.')
 
 
-def create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params):
+def create_data_loaders(partition, labels, labels_hot, data_folder, preprocess, device, loader_params, scale='rgb'):
     batch_size = loader_params['batch_size']
     shuffle = loader_params['shuffle']
     num_workers = loader_params['num_workers']
 
     # creating the train data loader
-    train_set = Dataset(partition['train'], labels, labels_hot, data_folder, preprocess, device)
+    train_set = Dataset(partition['train'], labels, labels_hot, data_folder, preprocess, device, scale)
     train_loader = data.DataLoader(dataset=train_set, batch_size=batch_size,
                                    shuffle=shuffle, num_workers=num_workers)
     # creating the validation data loader
-    val_set = Dataset(partition['validation'], labels, labels_hot, data_folder, preprocess, device)
+    val_set = Dataset(partition['validation'], labels, labels_hot, data_folder, preprocess, device, scale)
     val_loader = data.DataLoader(dataset=val_set, batch_size=batch_size,
                                  shuffle=False, num_workers=num_workers)
 
     # creating the validation data loader
-    test_set = Dataset(partition['test'], labels, labels_hot, data_folder, preprocess, device)
+    test_set = Dataset(partition['test'], labels, labels_hot, data_folder, preprocess, device, scale)
     test_loader = data.DataLoader(dataset=test_set, batch_size=batch_size,
                                   shuffle=False, num_workers=num_workers)
     return train_loader, val_loader, test_loader
+
+
+def read_bbox(bbox_file_name):
+    """
+    Note: If one needs to get the class of the disease, he/she could look at the 'read_and_partition_data' and use a
+    similar dictionary to convert the disease name to the disease class.
+    :param bbox_file_name: the name of the bbox file. NOTE: this file should exist in the 'data' folder, and only the
+    name of the file should be given to this function, like 'BBox_List_2017.csv', not the full path. See the test module
+    for usage.
+    :return: list containing the rows of the file.
+    """
+    bbox_path = 'data/' + bbox_file_name
+    with open(bbox_path, 'rt') as f:
+        reader = csv.reader(f)
+        rows = list(reader)[1:]  # ignoring the first row because it is the titles
+
+    for row in rows:
+        for idx in [2, 3, 4, 5]:
+            row[idx] = float(row[idx])  # convert the box coordinates from str to float
+
+    print(f'In [read_bbox]: read bounding boxes for {len(rows)} images')
+    return rows

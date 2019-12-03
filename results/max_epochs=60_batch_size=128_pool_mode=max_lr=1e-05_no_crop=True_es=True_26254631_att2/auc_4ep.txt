@@ -1,0 +1,14 @@
+class Atelectasis, AUC = 0.73
+class Cardiomegaly, AUC = 0.85
+class Consolidation, AUC = 0.70
+class Edema, AUC = 0.81
+class Effusion, AUC = 0.78
+class Emphysema, AUC = 0.84
+class Fibrosis, AUC = 0.78
+class Hernia, AUC = 0.84
+class Infiltration, AUC = 0.67
+class Mass, AUC = 0.73
+class Nodule, AUC = 0.68
+class Pleural_Thickening, AUC = 0.72
+class Pneumonia, AUC = 0.65
+class Pneumothorax, AUC = 0.82
