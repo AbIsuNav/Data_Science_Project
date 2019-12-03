@@ -170,7 +170,7 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
     Generationg bounding box on the original image:
     Threshold the image and rectangular the contours, pick the largest one.
     further method include merge/add boxes from different classes given the prediction.
-    :return: cooridnator of the bounding box of each class
+    :return: cooridnator of the bounding box of each class: (x, y, w, h)
     """
     # assume it comes in batch, generate the heatmap first
     model.eval()
@@ -206,13 +206,14 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
                 largest = bbox_area.index(max(bbox_area))
                 (x, y, w, h) = bbox[largest][0], bbox[largest][1], bbox[largest][2], bbox[largest][3]
                 if merge:
-                    # compute overlap, rank and merge, unfinished
+                    # compute overlap, rank and merge, not sure if it's necessary
                     pass
                 bbox_index[i, c, thre] = (x, y, w, h)
             fig, ax = plt.subplots(1)
             (x, y, w, h) = bbox_index[i, c, threshold[0]]
             (x2, y2, w2, h2) = bbox_index[i, c, threshold[1]]
             ax.imshow(image)
+            # th
             ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
             ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
             # plt.savefig(f'{save_path}Bbox_sample_{i}_class_{c}.png')
@@ -228,3 +229,57 @@ def limit(x, y, w, h, W, H):
     bbox_h = min(max(h, 0), H - y - 5)
 
     return bbox_x, bbox_y, bbox_w, bbox_h
+
+def compute_Intersection(y_true, y_pred, mode="IoU"):
+    """
+    :param y_true: assume the format of bounding box is [x, y, w, h]
+    :param y_pred: the predicted bounding box with format [x, y, w, h]
+    :param mode: IoU or IoBB
+    :return:  intersection over union/detected B-Box area ratio
+    """
+    # get corresponding bounding box given y_pred labels
+    #generate_bbox(image_batch, model)
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xR = max(y_true[0], y_pred[0])
+    yR = max(y_true[1], y_pred[1])
+    xL = min(y_true[0] + y_true[2], y_pred[0] + y_pred[2])
+    yL = min(y_true[1] + y_true[3], y_pred[1] + y_pred[3])
+    # compute the area of intersection rectangle
+    inter_area = max(0, xL - xR + 1) * max(0, yL - yR + 1)
+    # compute the area of both the prediction and ground-truth rectangles
+    #true_area = (y_true[2] - y_true[0] + 1) * (y_true[3] - y_true[1] + 1) # if GT is [x1,y1,x2,y2]
+    true_area = y_true[2] * y_pred[3]
+    pred_area = y_pred[2] * y_pred[3]
+    if mode=="IoU":
+        # compute the intersection over union ratio(IoU)
+        ratio = inter_area / float(true_area + pred_area - inter_area)
+    else:
+        # compute intersection over the detected B-Box area ratio
+        ratio = inter_area / pred_area
+
+    return ratio
+
+
+def acc_bbox(y_pred, y_true, mode="IoU"):
+    """
+    :param y_pred: predition with highest scores?
+    :param y_true: ground truth label of class
+    :param mode: evaluation metric type
+    :return: Accuracy of localization
+    """
+    if mode=="IoU":
+        T = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+        res = compute_Intersection(y_pred, y_true, mode="IoU")
+    else:
+        T = [0.1, 0.25, 0.5, 0.75, 0.9]
+        res = compute_Intersection(y_pred, y_true, mode="IoBB")
+    acc = {} # key is t, value is accuracy
+    # compute accuracy for different T
+    for t in T:
+        acc[t] = 0
+        for i in len(y_pred):
+            if res >= t:
+                acc[t] += 1
+        acc[t] = acc[t]/len(y_pred)
+
+    return acc
