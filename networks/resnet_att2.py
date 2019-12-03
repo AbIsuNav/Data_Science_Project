@@ -1,10 +1,8 @@
-from . import resnet
 import torch
-from torchvision import transforms
-from PIL import Image
 import torch.nn as nn
-import cv2 as cv
 from torchvision import models
+
+from . import resnet
 
 """
 Pre-trained ResNet50
@@ -69,7 +67,7 @@ class MyResnet2(nn.Module):
     def __init__(self, resnet):
         super(MyResnet2, self).__init__()
         channels = 64
-        self.inplanes = 14
+        #self.inplanes = 14
         self.resnet = resnet
         self.se1 = SELayer(channels)
         self.se2 = SELayer(channels*2)
@@ -81,7 +79,7 @@ class MyResnet2(nn.Module):
         self.pool = nn.AvgPool2d(kernel_size=7, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.resize = nn.Upsample(scale_factor=4)
-        self.conv_att = nn.Conv2d(1024, self.inplanes, kernel_size=1)
+        self.conv_att = nn.Conv2d(1024, 14, kernel_size=1)
         # self.norm = nn.BatchNorm2d(self.inplanes)
         # self.relu = nn.LeakyReLU()
         self.sig = nn.Sigmoid()
@@ -182,7 +180,6 @@ if __name__ == "__main__":
         "pool_mode": "max",
         "r": 5
     }
-    from torchvision.models.resnet import BasicBlock
 
     model = MyResnet2(models.resnet34(pretrained=True))
     test_batch = torch.rand((4, 3, 256, 256))
