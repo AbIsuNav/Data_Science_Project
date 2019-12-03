@@ -1,9 +1,10 @@
-import networks
-
 import os
 
 import torch
 from torchvision import transforms
+
+import networks
+from networks import resnet_att2
 
 
 def compute_val_loss(unified_net, val_loader, device, att2=False):
@@ -56,7 +57,7 @@ def save_model(model, optimizer, models_folder, epoch):
     print(f'Saved the model and optimizer at: "{model_name}" and "{optimizer_name}"')
 
 
-def load_model(model_name, device, transition_params=None, which_resnet=None, unified_net_params=None):
+def load_model(model_name, device, transition_params=None, which_resnet=None, unified_net_params=None, network_type=None):
     """
     This function loads a model or an optimizer, based on the model name and the parameters given. It infers from the
     model name if it should load a model or an optimizer, so the model name is super important.
@@ -68,7 +69,16 @@ def load_model(model_name, device, transition_params=None, which_resnet=None, un
     :return:
     """
     # loading a model
-    if 'unified_net' in model_name:
+    if network_type == "attention2":
+        attention2_net = resnet_att2.ResNet_A2(which_resnet).to(device)
+        # if device == "cpu":
+        #    unified_net.load_state_dict(torch.load(model_name, map_location=torch.device('cpu')))
+        # else:
+        attention2_net.load_state_dict(torch.load(model_name, map_location=device))
+        attention2_net.eval()  # putting in evaluation mode (for batch normalization, dropout and so on, if it has any)
+        # do I need to set all param requires_grad to False?
+        return attention2_net
+    elif 'unified_net' in model_name:
         unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
         # if device == "cpu":
         #    unified_net.load_state_dict(torch.load(model_name, map_location=torch.device('cpu')))

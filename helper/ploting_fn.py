@@ -11,9 +11,9 @@ import data_handler
 from torch.utils import data as udata
 
 
-def evaluate_model(model_path, params):
+def evaluate_model(model_path, params, nettype):
     no_crop = True if 'no_crop=True' in model_path else False
-    print(f'In [evaluate_model]: evaluating model: "{model_path}", no_crop: {no_crop} \n')
+    print(f'In [evaluate_model]: evaluating model: "{model_path}", no_crop: {no_crop} , network type : {nettype} \n')
 
     # adjust S, for models with no_crop in their names, S is 8 because the training and test images were of size 256x256
     transition_params = params['transition_params']
@@ -59,7 +59,7 @@ def evaluate_model(model_path, params):
     total_labels = np.zeros((batch_size, 14))
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = helper_fn.load_model(model_path, device, transition_params, 'resnet34')
+    net = helper_fn.load_model(model_path, device, transition_params=transition_params, which_resnet='resnet34', network_type=nettype)
 
     for i_batch, batch in enumerate(test_loader):
         img_batch = batch['image'].to(device).float()
@@ -114,7 +114,7 @@ def plot_ROC(prediction, target, class_names, save=False, folder=""):
     auc_list = list()
     for i in range(n_classes):
         plt.plot(fpr[i], tpr[i], label=' {} '.format(class_names[i]))
-        auc_list.append("class {0}, AUC = {1:0.2f}".format(class_names[i], roc_auc[i]))
+        auc_list.append("class {0}, AUC = {1:0.6f}".format(class_names[i], roc_auc[i]))
 
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlim([0.0, 1.0])

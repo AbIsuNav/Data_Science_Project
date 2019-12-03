@@ -155,7 +155,8 @@ def main():
 
     # model evaluation
     if args.evaluate:
-        helper.evaluate_model(args.model_path, params)
+
+        helper.evaluate_model(args.model_path, params, args.net_type)
 
     # training
     else:

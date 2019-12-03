@@ -28,8 +28,8 @@ class ResNet_A2(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.resize = nn.Upsample(scale_factor=4)
         self.conv1 = nn.Conv2d(1024, self.inplanes, kernel_size=1)
-        self.norm = nn.BatchNorm2d(self.inplanes)
-        self.relu = nn.LeakyReLU()
+        #self.norm = nn.BatchNorm2d(self.inplanes)
+        #self.relu = nn.LeakyReLU()
         self.sig = nn.Sigmoid()
 
     def forward(self, input_img, get_heatmap=False, verbose=False):
