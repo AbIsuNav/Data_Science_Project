@@ -1,9 +1,10 @@
-from . import resnet
+#from . import resnet
 import torch
 from torchvision import transforms
 from PIL import Image
 import torch.nn as nn
 import cv2 as cv
+from torchvision import models
 
 """
 Pre-trained ResNet50
@@ -64,6 +65,92 @@ class ResNet_A2(nn.Module):
         return x
 
 
+class MyResnet2(nn.Module):
+    def __init__(self, resnet):
+        super(MyResnet2, self).__init__()
+        channels = 64
+        self.resnet = resnet
+        self.se1 = SELayer(channels)
+        self.se2 = SELayer(channels*2)
+        self.down2 = nn.Sequential(nn.Conv2d(channels, channels*2, 1),
+                                   nn.BatchNorm2d(channels*2))
+        self.se3 = SELayer(channels*4)
+        self.down3 = nn.Sequential(nn.Conv2d(channels*2, channels * 4, 1),
+                                   nn.BatchNorm2d(channels * 4))
+        self.se4 = SELayer(channels*8)
+        self.down4 = nn.Sequential(nn.Conv2d(channels*4, channels * 8, 1),
+                                   nn.BatchNorm2d(channels * 8))
+        self.pool = nn.AvgPool2d(kernel_size=7, stride=1)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.resize = nn.Upsample(scale_factor=4)
+        self.conv_att = nn.Conv2d(1024, 14, kernel_size=1)
+        # self.norm = nn.BatchNorm2d(self.inplanes)
+        # self.relu = nn.LeakyReLU()
+        self.sig = nn.Sigmoid()
+
+
+    def forward(self, x, get_heatmap=False,verbose=False):
+        x = self.resnet.conv1(x)
+        x = self.resnet.bn1(x)
+        x = self.resnet.relu(x)
+        x = self.resnet.maxpool(x)
+        residual = x
+        x = self.resnet.layer1(x)
+        x = self.se1(x)
+        x += residual
+        residual = nn.functional.interpolate(x, scale_factor=0.5)
+        residual = self.down2(residual) #64
+        x = self.resnet.layer2(x)
+        x = self.se2(x)  # 128
+        x += residual
+        residual = self.down3(x)
+        residual = nn.functional.interpolate(residual, scale_factor=0.5)
+        x = self.resnet.layer3(x)
+        x = self.se3(x)
+        x += residual
+        residual = self.down4(x)
+        residual = nn.functional.interpolate(residual, scale_factor=0.5)
+        x = self.resnet.layer4(x)
+        x = self.se4(x)
+        x += residual
+        x2 = self.pool(x)
+        x2 = self.resize(x2)
+        x = torch.cat((x2, x), 1)
+        x = self.conv_att(x)
+        if get_heatmap:
+            return x
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.sig(x)
+        return x
+
+
+class SELayer(nn.Module):
+    def __init__(self, in_channel):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Conv2d(in_channel, in_channel, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channel, in_channel, 1),
+            nn.Sigmoid()
+        )
+
+    def initialize(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x)
+        y = self.fc(y)
+        return x * y
+
+
 if __name__ == "__main__":
     param_set = {
         "include_1x1_conv": True,
@@ -75,7 +162,11 @@ if __name__ == "__main__":
         "pool_mode": "max",
         "r": 5
     }
-    test_batch = torch.rand((10, 3, 224, 224))
+    from torchvision.models.resnet import BasicBlock
 
-    model = ResNet_A2("resnet34")
-    model(test_batch)
+    model = MyResnet2(models.resnet34(pretrained=True))
+    test_batch = torch.rand((4, 3, 256, 256))
+    output = model(test_batch)
+
+    #model = ResNet_A2("resnet34")
+    #model(test_batch)

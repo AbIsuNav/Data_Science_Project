@@ -7,7 +7,7 @@ import networks
 from networks import resnet_att2
 
 
-def compute_val_loss(unified_net, val_loader, device, att2=False):
+def compute_val_loss(unified_net, val_loader, device, att2=None):
     """
     Computes the validation loss and return its float number.
     :param unified_net: the trained net.
@@ -78,6 +78,11 @@ def load_model(model_name, device, transition_params=None, which_resnet=None, un
         attention2_net.eval()  # putting in evaluation mode (for batch normalization, dropout and so on, if it has any)
         # do I need to set all param requires_grad to False?
         return attention2_net
+    elif network_type == "attentionSE":
+        attention_net = networks.resnet.load_attSE().to(device)
+        attention_net.load_state_dict(torch.load(model_name, map_location=device))
+        attention_net.eval()
+        return attention_net
     elif 'unified_net' in model_name:
         unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
         # if device == "cpu":

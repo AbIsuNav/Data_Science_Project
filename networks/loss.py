@@ -17,7 +17,7 @@ def WCEL(fx, label, att2=False):
     betaP = (P + N) / (P + 1e-5)  # avoid zero in denominator
     betaN = (P + N) / (N + 1e-5)
     y0 = torch.abs(label - 1)
-    if att2:
+    if att2>0:
         loss = (-betaP * torch.log(fx+1e-6) * label).sum() - (betaN * torch.log(1 - fx+1e-6) * y0).sum()
     else:
         loss = (-betaP * torch.log(fx) * label).sum() - (betaN * torch.log(1 - fx) * y0).sum()

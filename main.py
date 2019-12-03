@@ -46,7 +46,7 @@ def read_params_and_args():
     return args, params
 
 
-def train(model, optimizer, model_params, train_params, args, early_stopping=True, tracker=None, scheduler=None, att2=False):
+def train(model, optimizer, model_params, train_params, args, early_stopping=True, tracker=None, scheduler=None, att2=None):
     max_epochs = train_params['max_epochs']
     batch_size = train_params['batch_size']
     save_model_interval = train_params['save_model_interval']
@@ -74,6 +74,7 @@ def train(model, optimizer, model_params, train_params, args, early_stopping=Tru
                     f'pool_mode={pool_mode}_' \
                     f'lr={args.lr}_' \
                     f'no_crop={True}_' \
+                    f'type={args.net_type}_' \
                     f'es={early_stopping}_{mins_since_epoch}'
 
     # set up early stopping
@@ -178,7 +179,7 @@ def main():
         which_resnet = params['which_resnet']
         transition_params = params['transition_params']  # if the pool mode is 'max' or 'avg', the r value is imply ignored
         print('In [main]: transition params:', transition_params)
-        attention2 = False
+        attention2 = 0
         # read the data and the labels
         partition, labels, labels_hot = \
             data_handler.read_already_partitioned(h5_file)
@@ -199,7 +200,10 @@ def main():
         # the model
         if network_type == "attention2":
             unified_net = resnet_att2.ResNet_A2(which_resnet).to(device)
-            attention2=True
+            attention2 = 1
+        elif network_type == "attentionSE":
+            unified_net = networks.resnet.load_attSE().to(device)
+            attention2 = 2
         else:
             unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 

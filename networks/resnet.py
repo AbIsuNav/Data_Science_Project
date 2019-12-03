@@ -5,6 +5,7 @@ import torch.nn as nn
 
 from torchvision import models
 from torchsummary import summary
+from networks import resnet_att2
 
 """
 Pre-trained ResNet50
@@ -239,6 +240,20 @@ def load_model():
     print(torch.nn.functional.softmax(output[0], dim=0))
 
 
+def load_attSE(train_params=True):
+    resnet_model = models.resnet34(pretrained=True)
+
+    if not train_params:
+        # put the model in evaluation mode (for batch normalization etc.)
+        resnet_model.eval()
+
+        # freezing the parameters
+        for param in resnet_model.parameters():
+            param.requires_grad = False
+    model = resnet_att2.MyResnet2(resnet_model)
+
+    return model
+
 def load_resnet(train_params=False, verbose=False):
     """
     Example from https://pytorch.org/hub/pytorch_vision_resnet/
@@ -282,5 +297,5 @@ def load_resnet(train_params=False, verbose=False):
 
 if __name__ == "__main__":
     # load_model()
-    resnet = load_resnet(verbose=True)
+    resnet = load_attSE()
     # print(resnet)
