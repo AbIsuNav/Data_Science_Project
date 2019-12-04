@@ -31,7 +31,7 @@ class ResNet_A2(nn.Module):
         #self.relu = nn.LeakyReLU()
         self.sig = nn.Sigmoid()
 
-    def forward(self, input_img, get_heatmap=False, verbose=False):
+    def forward(self, input_img, CAM=False, verbose=False):
         """
         The forward pass of the network, plugging in the output of the resnet to the transition layer
         :param verbose:
@@ -49,7 +49,7 @@ class ResNet_A2(nn.Module):
         if verbose:
             print('In [forward] of Attention2_Network: input batch size:', input_img.size())
             print('Heatmap size: ', x.size())
-        if get_heatmap:
+        if CAM:
             return x
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
@@ -86,7 +86,7 @@ class MyResnet2(nn.Module):
 
 
 
-    def forward(self, x, get_heatmap=False,verbose=False):
+    def forward(self, x, CAM=False,verbose=False):
         x = self.resnet.conv1(x)
         x = self.resnet.bn1(x)
         x = self.resnet.relu(x)
@@ -114,7 +114,7 @@ class MyResnet2(nn.Module):
         x2 = self.resize(x2)
         x = torch.cat((x2, x), 1)
         x = self.conv_att(x)
-        if get_heatmap:
+        if CAM:
             return x
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
