@@ -1,10 +1,8 @@
-from . import resnet
 import torch
-from torchvision import transforms
-from PIL import Image
 import torch.nn as nn
-import cv2 as cv
 from torchvision import models
+
+from . import resnet
 
 """
 Pre-trained ResNet50
@@ -69,17 +67,15 @@ class MyResnet2(nn.Module):
     def __init__(self, resnet):
         super(MyResnet2, self).__init__()
         channels = 64
+        #self.inplanes = 14
         self.resnet = resnet
         self.se1 = SELayer(channels)
         self.se2 = SELayer(channels*2)
-        self.down2 = nn.Sequential(nn.Conv2d(channels, channels*2, 1),
-                                   nn.BatchNorm2d(channels*2))
+        self.down2 = Downsample(channels, channels*2)
         self.se3 = SELayer(channels*4)
-        self.down3 = nn.Sequential(nn.Conv2d(channels*2, channels * 4, 1),
-                                   nn.BatchNorm2d(channels * 4))
+        self.down3 = Downsample(channels*2, channels * 4)
         self.se4 = SELayer(channels*8)
-        self.down4 = nn.Sequential(nn.Conv2d(channels*4, channels * 8, 1),
-                                   nn.BatchNorm2d(channels * 8))
+        self.down4 = Downsample(channels*4, channels * 8)
         self.pool = nn.AvgPool2d(kernel_size=7, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.resize = nn.Upsample(scale_factor=4)
@@ -87,6 +83,7 @@ class MyResnet2(nn.Module):
         # self.norm = nn.BatchNorm2d(self.inplanes)
         # self.relu = nn.LeakyReLU()
         self.sig = nn.Sigmoid()
+
 
 
     def forward(self, x, get_heatmap=False,verbose=False):
@@ -125,6 +122,26 @@ class MyResnet2(nn.Module):
         return x
 
 
+class Downsample(nn.Module):
+    def __init__(self, in_channel, out_channel):
+        super(Downsample, self).__init__()
+        self.down = nn.Sequential(nn.Conv2d(in_channel, out_channel, 1),
+                                  nn.BatchNorm2d(out_channel))
+        self.initialize()
+
+    def initialize(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        x = self.down(x)
+        return x
+
+
 class SELayer(nn.Module):
     def __init__(self, in_channel):
         super(SELayer, self).__init__()
@@ -135,6 +152,7 @@ class SELayer(nn.Module):
             nn.Conv2d(in_channel, in_channel, 1),
             nn.Sigmoid()
         )
+        self.initialize()
 
     def initialize(self):
         for m in self.modules():
@@ -162,7 +180,6 @@ if __name__ == "__main__":
         "pool_mode": "max",
         "r": 5
     }
-    from torchvision.models.resnet import BasicBlock
 
     model = MyResnet2(models.resnet34(pretrained=True))
     test_batch = torch.rand((4, 3, 256, 256))
