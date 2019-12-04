@@ -1,0 +1,21 @@
+Class: Atelectasis - IoU: [0.56896552 0.36781609 0.24712644 0.10344828 0.0862069  0.06321839
+ 0.04597701]
+Class: Cardiomegaly - IoU: [0.82962963 0.74074074 0.65185185 0.52592593 0.34814815 0.25925926
+ 0.17037037]
+Class: Consolidation - IoU: [nan nan nan nan nan nan nan]
+Class: Edema - IoU: [nan nan nan nan nan nan nan]
+Class: Effusion - IoU: [0.5078125 0.375     0.2578125 0.1796875 0.1171875 0.0625    0.0234375]
+Class: Emphysema - IoU: [nan nan nan nan nan nan nan]
+Class: Fibrosis - IoU: [nan nan nan nan nan nan nan]
+Class: Hernia - IoU: [nan nan nan nan nan nan nan]
+Class: Infiltrate - IoU: [0.67741935 0.48387097 0.27419355 0.13709677 0.08870968 0.03225806
+ 0.01612903]
+Class: Mass - IoU: [0.63829787 0.29787234 0.12765957 0.05319149 0.03191489 0.0212766
+ 0.        ]
+Class: Nodule - IoU: [0.42105263 0.03947368 0.         0.         0.         0.
+ 0.        ]
+Class: Pleural_Thickening - IoU: [nan nan nan nan nan nan nan]
+Class: Pneumonia - IoU: [0.36879433 0.24822695 0.13475177 0.07092199 0.0212766  0.
+ 0.        ]
+Class: Pneumothorax - IoU: [0.46428571 0.27678571 0.15178571 0.05357143 0.02678571 0.
+ 0.        ]

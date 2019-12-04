@@ -132,7 +132,7 @@ def plot_ROC(prediction, target, class_names, save=False, folder=""):
     print('In [plot_ROC]: done')
 
 
-def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True, show_or_save='both'):
+def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True, show_or_save='save', label=[], path_exist=False):
     """
     Plots class activation maps for a batch of images.
     :param image_batch: Batch of images, dimensions (Batch size, 3, H, W)
@@ -145,9 +145,10 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
     :return:
     """
     # creating the path
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-        print(f'In [plot_heatmaps]: path "{save_path}" created.')
+    if not path_exist:
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+            print(f'In [plot_heatmaps]: path "{save_path}" created.')
 
     # setting requires_grad to False to enable .numpy() function on the model
     for p in model.parameters():
@@ -160,28 +161,33 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
     out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
     for i in range(len(out)):
         for c in range(out[0].size(0)):
-            heatmap = np.uint8(out[i][c].cpu().numpy() * 255)
+            if c not in label:
+                continue
+            heatmap = np.uint8(out[i][c].cpu().numpy() * (-255))
             heatmap = cv2.applyColorMap(cv2.resize(heatmap, resize_dim), cv2.COLORMAP_JET)
             # merge heatmap and image(make them transparent) on a same image
             if compare:
                 mean = torch.tensor([0.485, 0.456, 0.406]).unsqueeze(-1).unsqueeze(-1)
                 std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
-                img = (image_batch[i].cpu() + mean) * std
+                img = (image_batch[i].cpu() * std) + mean
                 img = (img + 1) * 255 / 2
                 img = np.uint8(img.permute(1, 2, 0).numpy())
                 heatmap = np.uint8(heatmap * 0.3 + img * 0.5)
 
             # showing the result
             if show_or_save == 'show' or show_or_save == 'both':
+                plt.figure()
                 plt.imshow(heatmap)
                 plt.title('Activation map, sample {}, class {}'.format(i, c))
                 plt.show()
 
             # saving the result
             if show_or_save == 'save' or show_or_save == 'both':
-                # plt.imshow(heatmap)
-                # plt.title('Activation map, sample {}, class {}'.format(i, c))
-                plt.savefig(f'{save_path}CAM_sample_{i}_class_{c}.png')
+                plt.figure()
+                plt.imshow(heatmap)
+                plt.title('Activation map, class {}'.format(c))
+                plt.savefig(f'{save_path}_class_{c}.png')
+                plt.close()
 
             # plt.show()
             # cv2.imwrite(f'{save_path}CAM_sample_{i}_class_{c}.png', heatmap)
@@ -232,15 +238,17 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
                     # compute overlap, rank and merge, not sure if it's necessary
                     pass
                 bbox_index[i, c, thre] = (x, y, w, h)
-            # fig, ax = plt.subplots(1)
-            # (x, y, w, h) = bbox_index[i, c, threshold[0]]
-            # (x2, y2, w2, h2) = bbox_index[i, c, threshold[1]]
-            # ax.imshow(image)
+            """
+            fig, ax = plt.subplots(1)
+            (x, y, w, h) = bbox_index[i, c, threshold[0]]
+            (x2, y2, w2, h2) = bbox_index[i, c, threshold[1]]
+            ax.imshow(image.cpu().numpy())
             # th
-            # ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
-            # ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
-            # plt.savefig(f'{save_path}Bbox_sample_{i}_class_{c}.png')
-            # plt.show()
+            ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
+            ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
+            plt.savefig(f'{save_path}Bbox_sample_{i}_class_{c}.png')
+            plt.show()
+            """
 
     return bbox_index
 
@@ -305,7 +313,7 @@ def acc_bbox(y_pred, y_true, mode="IoU"):
     return acc
 
 
-def evaluate_model_boxes(model_path, params):
+def evaluate_model_boxes(model_path, params, nettype):
     no_crop = True if 'no_crop=True' in model_path else False
     print(f'In [evaluate_model]: evaluating model: "{model_path}", no_crop: {no_crop} \n')
 
@@ -356,22 +364,61 @@ def evaluate_model_boxes(model_path, params):
     #total_labels = np.zeros((batch_size, 14))
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = helper_fn.load_model('./models'+model_path, device, transition_params, 'resnet34')
+    net = helper_fn.load_model('./models'+model_path, device, transition_params, 'resnet34', network_type = nettype)
     net.eval()
 
     acc_iou = np.zeros((len(pathologies), 7))
     acc_iobb = np.zeros((len(pathologies), 5))
     count = np.zeros((len(pathologies), 1))
 
+    plot_count = np.zeros(len(pathologies))
+
+    folder_path = model_path.split("/")
+    path_results = "results/" + folder_path[1]
+    if not os.path.isdir(path_results):
+        os.makedirs(path_results)
+        print(f'In [evaluate_model]: path "{path_results}" created....')
+
+    folder_path = model_path.split("/")
+    path_figures = "results/" + folder_path[1] + "/figures"
+    if not os.path.isdir(path_figures):
+        os.makedirs(path_figures)
+        print(f'In [evaluate_model]: path "{path_figures}" created....')
+
     for i_batch, batch in enumerate(test_loader):
         img_batch = batch['image'].to(device).float()
         label_batch = batch['label'][0][0].item()
-        bbox_truth = batch['label'][1].to(device).float()
+        bbox_truth = batch['label'][1].to(device).float()/4
 
         # with torch.no_grad():
         #     out = net(img_batch)
 
-        bbox_pred = generate_bbox(img_batch, net, resize_dim=(1024, 1024), threshold=[60, 180], merge=False)
+        bbox_pred = generate_bbox(img_batch, net, resize_dim=(256, 256), threshold=[60, 180], merge=False)
+
+        if params["plot_bbox"]:
+            if plot_count[label_batch] < 2:
+                plot_count[label_batch] += 1
+                fig, ax = plt.subplots(1)
+                (x, y, w, h) = bbox_pred[0, label_batch, 60]
+                (x2, y2, w2, h2) = bbox_pred[0, label_batch, 180]
+                mean = torch.tensor([0.485, 0.456, 0.406]).unsqueeze(-1).unsqueeze(-1)
+                std = torch.tensor([0.229, 0.224, 0.225]).unsqueeze(-1).unsqueeze(-1)
+                img = ((img_batch[0].cpu() * std) + mean).permute(1, 2, 0).numpy()
+                #img = np.uint8((img + 1) * 255 / 2)
+                ax.imshow(img)
+                # threshold of correct bbox, false positive bbox, ground truth
+                #ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=2, edgecolor='r', facecolor='none'))
+                ax.add_patch(patches.Rectangle((x2, y2), w2, h2, linewidth=2, edgecolor='g', facecolor='none'))
+                ax.add_patch(patches.Rectangle((bbox_truth[0][0], bbox_truth[0][1]), bbox_truth[0][2], bbox_truth[0][3], linewidth=2, edgecolor='b', facecolor='none'))
+                plt.title(f'Bounding box, class {label_batch}')
+                plt.savefig(f'{path_figures}/Bbox_sample_{i_batch}_class_{str(label_batch)}.png')
+                plt.close()
+                #plt.show()
+
+
+                plot_heatmaps(img_batch, net, resize_dim=(256, 256), save_path=f'{path_figures}/CAM_sample_{i_batch}', compare=True,
+                              show_or_save='save', label=[label_batch], path_exist=True)
+
         acc_iou[label_batch] += acc_bbox(bbox_pred[0, label_batch, 180], bbox_truth[0], mode='IoU')
         acc_iobb[label_batch] += acc_bbox(bbox_pred[0, label_batch, 180], bbox_truth[0], mode='IoBB')
         count[label_batch] += 1
@@ -385,10 +432,6 @@ def evaluate_model_boxes(model_path, params):
     print(f'IoU: {acc_iou}')
     print(f'IoBB: {acc_iobb}')
 
-
-
-    folder_path = model_path.split("/")
-    path_results = "results/" + folder_path[1]
     if not os.path.isdir(path_results):
         os.makedirs(path_results)
     with open(path_results + '/IoU.txt', 'w') as f:
@@ -399,5 +442,4 @@ def evaluate_model_boxes(model_path, params):
         for i, item in enumerate(acc_iobb):
             line = f'Class: {pathologies[i]} - IoBB: {item}'
             f.write("%s\n" % line)
-
 
