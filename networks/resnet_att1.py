@@ -21,14 +21,13 @@ def weights_init_kaiming(m):
         nn.init.constant_(m.bias.data, 0.0)
 
 
-
 class AttentionGate(nn.Module):
+        """
+        attention gated unit for the network
+        """
         def __init__(self, in_channels, gating_channels, inter_channels=None, mode='concatenation',
                      sub_sample_factor=(1, 1)):
             super(AttentionGate, self).__init__()
-
-            assert mode in ['concatenation', 'concatenation_debug', 'concatenation_residual']
-
             # Downsampling rate for the input featuremap
             if isinstance(sub_sample_factor, tuple):
                 self.sub_sample_factor = sub_sample_factor
@@ -103,6 +102,7 @@ class AttentionGate(nn.Module):
             batch_size = input_size[0]
             assert batch_size == g.size(0)
 
+            # compute compatibility score
             # theta => (b, c, t, h, w) -> (b, i_c, t, h, w) -> (b, i_c, thw)
             # phi   => (b, g_d) -> (b, i_c)
             theta_x = self.theta(x)
@@ -116,7 +116,7 @@ class AttentionGate(nn.Module):
             #  psi^T * f -> (b, psi_i_c, t/s1, h/s2, w/s3)
             sigm_psi_f = torch.sigmoid(self.psi(f))
 
-            # upsample the attentions and multiply
+            # upsample the attentions and multiply, sigm_psi_f is the attention map
             sigm_psi_f = F.interpolate(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode, align_corners=True)
             y = sigm_psi_f.expand_as(x) * x
             W_y = self.W(y)
@@ -181,7 +181,7 @@ class ResNet_AG(nn.Module):
     def __init__(self, n_classes=14, freeze=False, aggregation_mode='concat'):
         """
         :param transition_params: a dictionary containing the parameters needed to initialize a transition layer.
-        :param
+        :param aggregation_mode: Aggregation Strategy--['concat', 'mean', 'deep_sup', 'ft']
         """
         super().__init__()
         self.resnet = models.resnet34(pretrained=True)
@@ -196,6 +196,7 @@ class ResNet_AG(nn.Module):
         self.classifier3 = nn.Linear(self.channels[3], n_classes)
         self.classifiers = [self.classifier1, self.classifier2, self.classifier3]
 
+        # select different aggregation strategy
         if aggregation_mode == 'concat':
             self.classifier = nn.Linear(self.channels[2] + self.channels[3] + self.channels[3], n_classes)
             self.aggregate = self.aggregation_concat
@@ -228,8 +229,9 @@ class ResNet_AG(nn.Module):
     def forward(self, input, CAM=False, verbose=False):
         """
         The forward pass of the network, plugging in the output of the resnet to the transition layer
-        :param verbose:
+        :param verbose: actually not used
         :param input: the input image of shape (C, H, W), denoting channel, height, and width (excluding batch size)
+        :param CAM: whether want to return the
         :return: the prediction (or the heat-map) on the image
         """
         # resnet -- feature extraction
@@ -269,7 +271,7 @@ class ResNet_AG(nn.Module):
             # print('In [forward] of UnifiedNetwork: prediction for the first 5 images:')
             # print(pred[:5])
         '''
-        return out
+        return torch.sigmoid(out)
 
 
 if __name__ == "__main__":
