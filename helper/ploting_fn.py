@@ -293,10 +293,10 @@ def compute_Intersection(y_true, y_pred, mode="IoU"):
 
 def acc_bbox(y_pred, y_true, mode="IoU"):
     """
-    :param y_pred: predition with highest scores?
-    :param y_true: ground truth label of class
+    :param y_pred: predicted bounding box coordinate (x, y, w, h)
+    :param y_true: bounding box coordinate [x, y, w, h]
     :param mode: evaluation metric type
-    :return: Accuracy of localization
+    :return: accuracy of localization
     """
     if mode=="IoU":
         T = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]

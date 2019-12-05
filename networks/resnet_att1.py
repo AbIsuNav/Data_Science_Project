@@ -24,7 +24,7 @@ def weights_init_kaiming(m):
 
 class AttentionGate(nn.Module):
         def __init__(self, in_channels, gating_channels, inter_channels=None, mode='concatenation',
-                     sub_sample_factor=(2, 2, 2)):
+                     sub_sample_factor=(1, 1)):
             super(AttentionGate, self).__init__()
 
             assert mode in ['concatenation', 'concatenation_debug', 'concatenation_residual']
@@ -64,13 +64,15 @@ class AttentionGate(nn.Module):
             )
 
             # Theta^T * x_ij + Phi^T * gating_signal + bias
+            self.phi = conv_nd(in_channels=self.gating_channels, out_channels=self.inter_channels,
+                               kernel_size=1, stride=1, padding=0, bias=True)
+            #self.phi = conv_nd(in_channels=self.gating_channels, out_channels=self.inter_channels,
+            #             kernel_size=self.sub_sample_kernel_size, stride=self.sub_sample_factor, padding=0, bias=False)
+            self.psi = conv_nd(in_channels=self.inter_channels, out_channels=1, kernel_size=1, stride=1, padding=0,
+                               bias=True)
             self.theta = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
                                  kernel_size=self.sub_sample_kernel_size, stride=self.sub_sample_factor, padding=0,
                                  bias=False)
-            self.phi = conv_nd(in_channels=self.gating_channels, out_channels=self.inter_channels,
-                               kernel_size=1, stride=1, padding=0, bias=True)
-            self.psi = conv_nd(in_channels=self.inter_channels, out_channels=1, kernel_size=1, stride=1, padding=0,
-                               bias=True)
 
             # Initialise weights
             for m in self.children():
@@ -108,14 +110,14 @@ class AttentionGate(nn.Module):
 
             # g (b, c, t', h', w') -> phi_g (b, i_c, t', h', w')
             #  Relu(theta_x + phi_g + bias) -> f = (b, i_c, thw) -> (b, i_c, t/s1, h/s2, w/s3)
-            phi_g = F.upsample(self.phi(g), size=theta_x_size[2:], mode=self.upsample_mode)
+            phi_g = F.interpolate(self.phi(g), size=theta_x_size[2:], mode=self.upsample_mode, align_corners=True)
             f = F.relu(theta_x + phi_g, inplace=True)
 
             #  psi^T * f -> (b, psi_i_c, t/s1, h/s2, w/s3)
-            sigm_psi_f = F.sigmoid(self.psi(f))
+            sigm_psi_f = torch.sigmoid(self.psi(f))
 
             # upsample the attentions and multiply
-            sigm_psi_f = F.upsample(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode)
+            sigm_psi_f = F.interpolate(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode, align_corners=True)
             y = sigm_psi_f.expand_as(x) * x
             W_y = self.W(y)
 
@@ -133,14 +135,15 @@ class AttentionGate(nn.Module):
 
             # g (b, c, t', h', w') -> phi_g (b, i_c, t', h', w')
             #  Relu(theta_x + phi_g + bias) -> f = (b, i_c, thw) -> (b, i_c, t/s1, h/s2, w/s3)
-            phi_g = F.upsample(self.phi(g), size=theta_x_size[2:], mode=self.upsample_mode)
+            phi_g = F.interpolate(self.phi(g), size=theta_x_size[2:], mode=self.upsample_mode, align_corner=True)
             f = F.softplus(theta_x + phi_g)
 
             #  psi^T * f -> (b, psi_i_c, t/s1, h/s2, w/s3)
-            sigm_psi_f = F.sigmoid(self.psi(f))
+            sigm_psi_f = torch.sigmoid(self.psi(f))
 
             # upsample the attentions and multiply
-            sigm_psi_f = F.upsample(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode)
+            #sigm_psi_f = F.upsample(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode)
+            sigm_psi_f = F.interpolate(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode, align_corner=True)
             y = sigm_psi_f.expand_as(x) * x
             W_y = self.W(y)
 
@@ -158,7 +161,7 @@ class AttentionGate(nn.Module):
 
             # g (b, c, t', h', w') -> phi_g (b, i_c, t', h', w')
             #  Relu(theta_x + phi_g + bias) -> f = (b, i_c, thw) -> (b, i_c, t/s1, h/s2, w/s3)
-            phi_g = F.upsample(self.phi(g), size=theta_x_size[2:], mode=self.upsample_mode)
+            phi_g = F.interpolate(self.phi(g), size=theta_x_size[2:], mode=self.upsample_mode, align_corner=True)
             f = F.relu(theta_x + phi_g, inplace=True)
 
             #  psi^T * f -> (b, psi_i_c, t/s1, h/s2, w/s3)
@@ -166,7 +169,7 @@ class AttentionGate(nn.Module):
             sigm_psi_f = F.softmax(f, dim=2).view(batch_size, 1, *theta_x.size()[2:])
 
             # upsample the attentions and multiply
-            sigm_psi_f = F.upsample(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode)
+            sigm_psi_f = F.interpolate(sigm_psi_f, size=input_size[2:], mode=self.upsample_mode, align_corner=True)
             y = sigm_psi_f.expand_as(x) * x
             W_y = self.W(y)
 
@@ -175,7 +178,7 @@ class AttentionGate(nn.Module):
 
 class ResNet_AG(nn.Module):
 
-    def __init__(self, n_classes=14, freeze=False):
+    def __init__(self, n_classes=14, freeze=False, aggregation_mode='concat'):
         """
         :param transition_params: a dictionary containing the parameters needed to initialize a transition layer.
         :param
@@ -188,8 +191,24 @@ class ResNet_AG(nn.Module):
         self.ag1 = AttentionGate(self.channels[1], gating_channels=self.channels[3])
         self.ag2 = AttentionGate(self.channels[2], gating_channels=self.channels[3])
 
-        self.classifier = nn.Linear(n_classes * 3, n_classes)
-        self.aggregate = self.aggregation_ft
+        self.classifier1 = nn.Linear(self.channels[2], n_classes)
+        self.classifier2 = nn.Linear(self.channels[3], n_classes)
+        self.classifier3 = nn.Linear(self.channels[3], n_classes)
+        self.classifiers = [self.classifier1, self.classifier2, self.classifier3]
+
+        if aggregation_mode == 'concat':
+            self.classifier = nn.Linear(self.channels[2] + self.channels[3] + self.channels[3], n_classes)
+            self.aggregate = self.aggregation_concat
+        elif aggregation_mode == 'mean':
+            self.aggregate = self.aggregation_sep
+        elif aggregation_mode == 'deep_sup':
+            self.classifier = nn.Linear(self.channels[2] + self.channels[3] + self.channels[3], n_classes)
+            self.aggregate = self.aggregation_ds
+        elif aggregation_mode == 'ft':
+            self.classifier = nn.Linear(n_classes * 3, n_classes)
+            self.aggregate = self.aggregation_ft
+        else:
+            raise NotImplementedError
 
     def aggregation_ft(self, *attended_maps):
         preds = self.aggregation_sep(*attended_maps)
@@ -197,6 +216,14 @@ class ResNet_AG(nn.Module):
 
     def aggregation_sep(self, *attended_maps):
         return [clf(att) for clf, att in zip(self.classifiers, attended_maps)]
+
+    def aggregation_ds(self, *attended_maps):
+        preds_sep = self.aggregation_sep(*attended_maps)
+        pred = self.aggregation_concat(*attended_maps)
+        return [pred] + preds_sep
+
+    def aggregation_concat(self, *attended_maps):
+        return self.classifier(torch.cat(attended_maps, dim=1))
 
     def forward(self, input, CAM=False, verbose=False):
         """
@@ -233,7 +260,7 @@ class ResNet_AG(nn.Module):
         out = self.aggregate(g1, g2, pooled)
 
         if CAM:
-            return att1, att2
+            return x4
 
         '''
         if verbose:
@@ -259,4 +286,5 @@ if __name__ == "__main__":
     test_batch = torch.rand((4, 3, 256, 256))
     #from torch.autograd import Variable
     output = model(test_batch)
+    print(output.size())
 
