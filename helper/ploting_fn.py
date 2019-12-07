@@ -64,7 +64,8 @@ def evaluate_model(model_path, params, nettype):
     for i_batch, batch in enumerate(test_loader):
         img_batch = batch['image'].to(device).float()
         label_batch = batch['label'].to(device).float()
-        pred = net(img_batch, verbose=False)
+        with torch.no_grad():
+            pred = net(img_batch, verbose=False)
         if i_batch > 0:
             total_predicted = np.append(total_predicted, pred.cpu().detach().numpy(), axis=0)
             total_labels = np.append(total_labels, label_batch.cpu().detach().numpy(), axis=0)
@@ -132,7 +133,7 @@ def plot_ROC(prediction, target, class_names, save=False, folder=""):
     print('In [plot_ROC]: done')
 
 
-def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True, show_or_save='save', label=[], path_exist=False):
+def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/', compare=True, show_or_save='save', label=[], path_exist=False, nettype=None):
     """
     Plots class activation maps for a batch of images.
     :param image_batch: Batch of images, dimensions (Batch size, 3, H, W)
@@ -157,8 +158,9 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
     model.eval()
     out = model(image_batch, CAM=True)
     # normalization
-    out = out - torch.min(out, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
-    out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
+    if nettype != 'attention1':
+        out = out - torch.min(out, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
+        out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
     for i in range(len(out)):
         for c in range(out[0].size(0)):
             if c not in label:
@@ -193,7 +195,7 @@ def plot_heatmaps(image_batch, model, resize_dim=(224, 224), save_path='figures/
             # cv2.imwrite(f'{save_path}CAM_sample_{i}_class_{c}.png', heatmap)
 
 
-def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figures/', threshold=[60, 180], merge=False):
+def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figures/', threshold=[60, 180], merge=False, nettype=None):
     """
     Generationg bounding box on the original image:
     Threshold the image and rectangular the contours, pick the largest one.
@@ -205,8 +207,9 @@ def generate_bbox(image_batch, model, resize_dim=(224, 224), save_path='./figure
     with torch.no_grad():
         out = model(image_batch, CAM=True)
     # normalization
-    out = out - torch.min(out, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
-    out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
+    if nettype != 'attention1':
+        out = out - torch.min(out, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
+        out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
 
     H, W = resize_dim
     classes = out[0].size(0)
@@ -393,7 +396,7 @@ def evaluate_model_boxes(model_path, params, nettype):
         # with torch.no_grad():
         #     out = net(img_batch)
 
-        bbox_pred = generate_bbox(img_batch, net, resize_dim=(256, 256), threshold=[60, 180], merge=False)
+        bbox_pred = generate_bbox(img_batch, net, resize_dim=(256, 256), threshold=[60, 180], merge=False, nettype=nettype)
 
         if params["plot_bbox"]:
             if plot_count[label_batch] < 2:
@@ -417,7 +420,7 @@ def evaluate_model_boxes(model_path, params, nettype):
 
 
                 plot_heatmaps(img_batch, net, resize_dim=(256, 256), save_path=f'{path_figures}/CAM_sample_{i_batch}', compare=True,
-                              show_or_save='save', label=[label_batch], path_exist=True)
+                              show_or_save='save', label=[label_batch], path_exist=True, nettype=nettype)
 
         acc_iou[label_batch] += acc_bbox(bbox_pred[0, label_batch, 180], bbox_truth[0], mode='IoU')
         acc_iobb[label_batch] += acc_bbox(bbox_pred[0, label_batch, 180], bbox_truth[0], mode='IoBB')

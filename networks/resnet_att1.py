@@ -188,22 +188,26 @@ class ResNet_AG(nn.Module):
         #if freeze:
             #freeze weight
         self.channels = [64, 128, 256, 512]
+        self.conv1 = nn.Conv2d(self.channels[3], self.channels[3], kernel_size = 1)
         self.ag1 = AttentionGate(self.channels[1], gating_channels=self.channels[3])
         self.ag2 = AttentionGate(self.channels[2], gating_channels=self.channels[3])
 
-        self.classifier1 = nn.Linear(self.channels[2], n_classes)
-        self.classifier2 = nn.Linear(self.channels[3], n_classes)
+        self.classifier1 = nn.Linear(self.channels[1], n_classes)
+        self.classifier2 = nn.Linear(self.channels[2], n_classes)
         self.classifier3 = nn.Linear(self.channels[3], n_classes)
         self.classifiers = [self.classifier1, self.classifier2, self.classifier3]
+        self.aggregation_mode = aggregation_mode
+
+        self.classifier = nn.Linear(n_classes * 3, n_classes)
 
         # select different aggregation strategy
         if aggregation_mode == 'concat':
-            self.classifier = nn.Linear(self.channels[2] + self.channels[3] + self.channels[3], n_classes)
+            self.classifier = nn.Linear(self.channels[1] + self.channels[2] + self.channels[3], n_classes)
             self.aggregate = self.aggregation_concat
         elif aggregation_mode == 'mean':
             self.aggregate = self.aggregation_sep
         elif aggregation_mode == 'deep_sup':
-            self.classifier = nn.Linear(self.channels[2] + self.channels[3] + self.channels[3], n_classes)
+            self.classifier = nn.Linear(self.channels[1] + self.channels[2] + self.channels[3], n_classes)
             self.aggregate = self.aggregation_ds
         elif aggregation_mode == 'ft':
             self.classifier = nn.Linear(n_classes * 3, n_classes)
@@ -216,7 +220,7 @@ class ResNet_AG(nn.Module):
         return self.classifier(torch.cat(preds, dim=1))
 
     def aggregation_sep(self, *attended_maps):
-        return [clf(att) for clf, att in zip(self.classifiers, attended_maps)]
+        return [torch.sigmoid(clf(att)) for clf, att in zip(self.classifiers, attended_maps)]
 
     def aggregation_ds(self, *attended_maps):
         preds_sep = self.aggregation_sep(*attended_maps)
@@ -244,6 +248,7 @@ class ResNet_AG(nn.Module):
         x2 = self.resnet.layer2(x1)
         x3 = self.resnet.layer3(x2)
         x4 = self.resnet.layer4(x3)
+        x4 = self.conv1(x4)
 
         pooled = self.resnet.avgpool(x4)
         pooled = torch.flatten(pooled, 1)
@@ -251,18 +256,45 @@ class ResNet_AG(nn.Module):
         batch_size = input.shape[0]
 
         # Attention Mechanism
-        g1, att1 = self.ag1(x2, x4)
-        g2, att2 = self.ag2(x3, x4)
+        g1_conv, att1 = self.ag1(x2, x4)
+        g2_conv, att2 = self.ag2(x3, x4)
 
         # flatten to get single feature vector
-        g1 = torch.sum(g1.view(batch_size, self.channels[2], -1), dim=-1)
-        g2 = torch.sum(g2.view(batch_size, self.channels[3], -1), dim=-1)
+        g1 = torch.sum(g1_conv.view(batch_size, self.channels[1], -1), dim=-1)
+        g2 = torch.sum(g2_conv.view(batch_size, self.channels[2], -1), dim=-1)
 
         # aggregation
         out = self.aggregate(g1, g2, pooled)
 
         if CAM:
-            return x4
+            # make it a tensor
+            att3 = x4
+            att3 = F.interpolate(att3, size=att1.size()[2:], mode="bilinear", align_corners=False)
+            att3 = [torch.einsum(("ab, bcd ->acd"), (self.classifiers[2].weight.data, att3[i])).unsqueeze(0) for i in range(x4.size(0))]
+            att3 = torch.cat(att3)
+            att3 = att3 - torch.min(att3, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
+            att3 = att3 / torch.max(att3, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
+
+            # att2 = g2_conv
+            att2 = F.interpolate(att2, size=att1.size()[2:], mode="bilinear", align_corners=False)
+            # att2 = [torch.einsum(("ab, bcd ->acd"), (self.classifiers[1].weight.data, att2[i])).unsqueeze(0) for i in range(x4.size(0))]
+            # att2 = torch.cat(att2)
+            att2 = att2 - torch.min(att2, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
+            att2 = att2 / torch.max(att2, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
+
+            # att1 = g1_conv
+            # att1 = [torch.einsum(("ab, bcd ->acd"), (self.classifiers[0].weight.data, att1[i])).unsqueeze(0) for i in range(x4.size(0))]
+            # att1 = torch.cat(att1)
+            att1 = att1 - torch.min(att1, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
+            att1 = att1 / torch.max(att1, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
+
+            #att = torch.cat((att1, att2, att3), dim=1)
+            # out = [torch.einsum(("ab, bcd ->acd"), (self.classifier.weight.data, att[i])).unsqueeze(0) for i in range(x4.size(0))]
+            # out = torch.cat(out)
+            #out = out - torch.min(out, -1)[0].min(-1)[0].unsqueeze(-1).unsqueeze(-1)
+            #out = out / torch.max(out, -1)[0].max(-1)[0].unsqueeze(-1).unsqueeze(-1)
+
+            return (att1 + att2 + att3)/3
 
         '''
         if verbose:
@@ -271,7 +303,13 @@ class ResNet_AG(nn.Module):
             # print('In [forward] of UnifiedNetwork: prediction for the first 5 images:')
             # print(pred[:5])
         '''
-        return torch.sigmoid(out)
+
+        if self.aggregation_mode == 'mean':
+            out = sum(out)/3
+        else:
+            out = torch.sigmoid(out)
+
+        return out
 
 
 if __name__ == "__main__":

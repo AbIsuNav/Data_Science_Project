@@ -5,6 +5,7 @@ from torchvision import transforms
 
 import networks
 from networks import resnet_att2
+from networks import resnet_att1
 
 
 def compute_val_loss(unified_net, val_loader, device, att2=None):
@@ -83,6 +84,11 @@ def load_model(model_name, device, transition_params=None, which_resnet=None, un
         attention_net.load_state_dict(torch.load(model_name, map_location=device))
         attention_net.eval()
         return attention_net
+    if network_type == "attention1":
+        attention1_net = resnet_att1.ResNet_AG(aggregation_mode='ft').to(device)
+        attention1_net.load_state_dict(torch.load(model_name, map_location=device))
+        attention1_net.eval()
+        return attention1_net
     elif 'unified_net' in model_name:
         unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
         # if device == "cpu":

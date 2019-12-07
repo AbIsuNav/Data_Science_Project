@@ -11,6 +11,7 @@ import math
 import time
 
 from networks import resnet_att2
+from networks import resnet_att1
 import torch
 from torch.backends import cudnn
 from torch.optim.lr_scheduler import MultiStepLR
@@ -204,6 +205,9 @@ def main():
         elif network_type == "attentionSE":
             unified_net = networks.resnet.load_attSE().to(device)
             attention2 = 2
+        elif network_type == "attention1":
+            unified_net = networks.resnet_att1.ResNet_AG(aggregation_mode='mean').to(device)
+            attention2 = 1
         else:
             unified_net = networks.UnifiedNetwork(transition_params, which_resnet).to(device)
 
