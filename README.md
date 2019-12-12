@@ -1,7 +1,7 @@
 # Data_Science_Project
 Code for our implementation of thorax X-Ray image classification and localization, as part of the **Project Course in Data Science** for replicating and improving the results of the paper [ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases](https://arxiv.org/abs/1705.02315).
 
-Four full information regarding the appraoches we took to tackle the problem and the results, please see our [report](report).
+Four full information regarding the appraoches we took to tackle the problem and the results, please see our [report](Project_Course_in_Data_Science_Report.pdf).
 
 ### To run the program:
 There are a few arguments that can be used when running the program:
