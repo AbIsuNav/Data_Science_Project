@@ -14,7 +14,7 @@ There are a few arguments that can be used when running the program:
 
 `--save_checkpoints`: If used, the model checkpoints will be saved (at every epoch).
 
-`--lr`: Determines the learning rate to be used
+`--lr`: Determines the learning rate to be used.
 
 `--wdecay`: If set, weight decay is applied (see the code for more details).
 
