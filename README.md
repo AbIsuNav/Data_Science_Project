@@ -4,7 +4,7 @@ X-Ray image classification and localization
 ### To run the program:
 There are a few arguments that can be used when running the program:
 
---use_comet: if used, the experiment will be trakced in comet. Now only works for Moein's API key, but the experiment is public and everyone can view it.
+--`use_comet`: if used, the experiment will be trakced in comet. Now only works for Moein's API key, but the experiment is public and everyone can view it.
 
 --save_checkpoints: if used, the model checkpoints will be saved (at every epoch).
 
