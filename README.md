@@ -22,4 +22,4 @@ There are a few arguments that can be used when running the program:
 
 `--simple_lr_decay`: If used, a simple version of learning rate decay will be used (see the code for more details).
 
-`----net_type`: Determines which network type should be used for training. It could be "unified_net", "attention1", "attention2", or "attentionSE." See the code for more details.
+`----net_type`: Determines which network type should be used for training. It could be `unified_net`, `attention1`, `attention2`, or `attentionSE`. See the code for more details.
